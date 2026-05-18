@@ -339,7 +339,8 @@ iframe[src*="lovable.dev/badge"] {
     width: 297mm;
     height: 210mm;
     min-height: 210mm;
-    padding: 4mm 4mm;
+    padding: 4mm 25mm;
+    gap: 8mm;
     margin: 0;
     box-sizing: border-box;
     page-break-after: always;
