@@ -477,7 +477,7 @@ function DtrPanel({
         )}
 
         {emp ? (
-          <div className="border rounded-md p-4 overflow-auto bg-white">
+          <div className="border rounded-md p-4 overflow-auto bg-white print:hidden">
             <div className="dtr-page" style={{ width: "297mm" }}>
               <DtrSheet
                 employee={emp}
