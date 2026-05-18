@@ -91,6 +91,7 @@ export function DtrSheet({
             totalH += ut.h;
             totalM += ut.m;
             const dk = dateKey(year, monthIndex0, day);
+            const utLabel = `${ut.h}:${String(ut.m).padStart(2, "0")}`;
             return (
               <tr key={day}>
                 <td className="dtr-day-col">{day}</td>
@@ -98,15 +99,13 @@ export function DtrSheet({
                 <Cell value={rec.amDeparture} editable={editable} onChange={(v) => onEdit?.(dk, "amDeparture", v)} />
                 <Cell value={rec.pmArrival} editable={editable} onChange={(v) => onEdit?.(dk, "pmArrival", v)} />
                 <Cell value={rec.pmDeparture} editable={editable} onChange={(v) => onEdit?.(dk, "pmDeparture", v)} />
-                <td className="dtr-ut">{ut.h > 0 || ut.m > 0 ? ut.h : "0:00"}</td>
-                <td className="dtr-ut">{ut.h > 0 || ut.m > 0 ? ut.m : ""}</td>
+                <td className="dtr-ut" colSpan={2}>{utLabel}</td>
               </tr>
             );
           })}
           <tr>
             <td colSpan={5} className="dtr-total-label">Total</td>
-            <td className="dtr-ut">{totalH + Math.floor(totalM / 60)}</td>
-            <td className="dtr-ut">{totalM % 60 || "0:00"}</td>
+            <td className="dtr-ut" colSpan={2}>{`${totalH + Math.floor(totalM / 60)}:${String(totalM % 60).padStart(2, "0")}`}</td>
           </tr>
         </tbody>
       </table>

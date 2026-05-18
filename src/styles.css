@@ -185,14 +185,16 @@
 .dtr-month-row {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
   margin-top: 2px;
 }
 .dtr-month-value {
-  flex: 1;
   border-bottom: 1px solid black;
   font-weight: bold;
   text-align: center;
+  padding: 0 6px;
+  white-space: nowrap;
 }
 .dtr-italic { font-style: italic; }
 .dtr-underline { border-bottom: 1px solid black; }
@@ -279,12 +281,23 @@
 }
 
 @media print {
-  @page { size: A4 landscape; margin: 6mm; }
-  body { background: white !important; }
-  .no-print { display: none !important; }
+  @page { size: A4 landscape; margin: 0; }
+  html, body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 297mm;
+    height: 210mm;
+  }
+  .no-print, .print\:hidden { display: none !important; }
+  .hidden.print\:block { display: block !important; }
   .dtr-page {
-    width: 285mm;
-    padding: 0;
+    width: 297mm;
+    height: 210mm;
+    min-height: 210mm;
+    padding: 5mm 5mm;
+    margin: 0 auto;
+    box-sizing: border-box;
     page-break-after: always;
   }
   .dtr-cell-input { color: black; }
