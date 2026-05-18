@@ -352,6 +352,8 @@ function EmployeesPanel() {
           </div>
         </CardContent>
       </Card>
+
+      <BatchEmployeesPanel />
     </div>
   );
 }
