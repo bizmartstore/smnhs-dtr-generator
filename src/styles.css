@@ -179,7 +179,7 @@
   font-weight: bold;
   font-size: 10pt;
   border-bottom: 1px solid black;
-  margin: 0 10mm;
+  margin: 0 2mm;
   min-height: 14px;
 }
 .dtr-name-label { font-size: 7pt; font-style: italic; margin-bottom: 4px; }
