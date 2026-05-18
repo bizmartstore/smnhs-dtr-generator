@@ -48,7 +48,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const store = useDtrStore();
   const now = new Date();
   const [year, setYear] = useState<number>(now.getFullYear());
   const [monthIndex0, setMonthIndex0] = useState<number>(now.getMonth());
