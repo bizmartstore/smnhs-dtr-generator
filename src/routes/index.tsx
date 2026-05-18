@@ -575,6 +575,44 @@ function DtrPanel({
         </div>
 
         {emp && (
+          <div className="text-xs text-muted-foreground">
+            {empMonths.length === 0 ? (
+              <span className="text-destructive">
+                No raw logs found for #{emp.empNo}. Paste logs in the "Raw Logs" tab first.
+              </span>
+            ) : (
+              <>
+                Logs available for{" "}
+                {empMonths.map((x, i) => {
+                  const active = x.y === year && x.m === monthIndex0;
+                  return (
+                    <button
+                      key={`${x.y}-${x.m}`}
+                      type="button"
+                      onClick={() => {
+                        setYear(x.y);
+                        setMonthIndex0(x.m);
+                      }}
+                      className={
+                        "underline mr-2 " +
+                        (active ? "font-bold text-foreground" : "hover:text-foreground")
+                      }
+                    >
+                      {MONTHS[x.m].slice(0, 3)} {x.y} ({x.count})
+                    </button>
+                  );
+                })}
+                {currentMonthCount === 0 && (
+                  <span className="text-destructive">
+                    · Current selection ({MONTHS[monthIndex0]} {year}) has 0 logs.
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {emp && (
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
