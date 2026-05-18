@@ -502,6 +502,27 @@ function DtrPanel({
     );
   }, [emp, year, monthIndex0, store.state.logs, store.state.overrides]);
 
+  // Year+month combos that actually have logs for the selected employee
+  const empMonths = useMemo(() => {
+    if (!emp) return [] as { y: number; m: number; count: number }[];
+    const counts: Record<string, number> = {};
+    for (const l of store.state.logs) {
+      if (l.empNo !== emp.empNo) continue;
+      const [y, m] = l.date.split("-");
+      const k = `${y}-${m}`;
+      counts[k] = (counts[k] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([k, count]) => {
+        const [y, m] = k.split("-").map((x) => parseInt(x, 10));
+        return { y, m: m - 1, count };
+      })
+      .sort((a, b) => a.y - b.y || a.m - b.m);
+  }, [emp, store.state.logs]);
+
+  const currentMonthCount =
+    empMonths.find((x) => x.y === year && x.m === monthIndex0)?.count ?? 0;
+
   return (
     <Card>
       <CardHeader>
