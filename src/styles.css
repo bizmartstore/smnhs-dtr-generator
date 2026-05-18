@@ -142,3 +142,151 @@
     color: var(--color-foreground);
   }
 }
+
+/* ============ DTR Sheet (Civil Service Form No. 48) ============ */
+/* A4 landscape: 297mm x 210mm. Three sheets per page, each ~97mm wide. */
+
+.dtr-page {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4mm;
+  width: 297mm;
+  min-height: 210mm;
+  padding: 6mm 6mm;
+  margin: 0 auto;
+  background: white;
+  color: black;
+  font-family: "Times New Roman", Times, serif;
+  box-sizing: border-box;
+}
+
+.dtr-sheet {
+  font-size: 8pt;
+  line-height: 1.15;
+  color: black;
+  background: white;
+  display: flex;
+  flex-direction: column;
+}
+
+.dtr-top { text-align: center; }
+.dtr-form-no { font-style: italic; text-align: left; font-size: 7.5pt; }
+.dtr-title { font-weight: bold; font-size: 11pt; letter-spacing: 0.5px; }
+.dtr-divider { font-size: 7pt; margin-bottom: 2px; }
+.dtr-name {
+  font-weight: bold;
+  font-size: 10pt;
+  border-bottom: 1px solid black;
+  margin: 0 10mm;
+  min-height: 14px;
+}
+.dtr-name-label { font-size: 7pt; font-style: italic; margin-bottom: 4px; }
+
+.dtr-month-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 2px;
+}
+.dtr-month-value {
+  flex: 1;
+  border-bottom: 1px solid black;
+  font-weight: bold;
+  text-align: center;
+}
+.dtr-italic { font-style: italic; }
+.dtr-underline { border-bottom: 1px solid black; }
+.dtr-center { text-align: center; }
+
+.dtr-official {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  text-align: left;
+  font-size: 7.5pt;
+}
+.dtr-official-left { flex: 0 0 38%; }
+.dtr-official-right { flex: 1; }
+.dtr-official-time {
+  font-weight: bold;
+  font-family: Arial, sans-serif;
+  font-size: 7.5pt;
+}
+
+.dtr-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 7.5pt;
+}
+.dtr-table th,
+.dtr-table td {
+  border: 1px solid black;
+  text-align: center;
+  padding: 0 1px;
+  height: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.dtr-table th { font-weight: bold; background: white; }
+.dtr-day-col { width: 22px; }
+.dtr-cell { font-family: Arial, sans-serif; font-size: 7pt; }
+.dtr-cell-input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  text-align: center;
+  padding: 0;
+  color: black;
+}
+.dtr-ut { font-family: Arial, sans-serif; font-size: 7pt; }
+.dtr-total-label {
+  text-align: right !important;
+  font-weight: bold;
+  padding-right: 4px !important;
+}
+
+.dtr-cert {
+  margin-top: 4px;
+  font-size: 6.5pt;
+  font-style: italic;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.dtr-sig {
+  margin-top: 10px;
+  text-align: center;
+  border-bottom: 1px solid black;
+  margin-left: 6mm;
+  margin-right: 6mm;
+}
+.dtr-sig-name { font-weight: bold; font-size: 9pt; }
+
+.dtr-verified {
+  margin-top: 4px;
+  font-size: 7pt;
+  text-align: left;
+}
+.dtr-instructions {
+  margin-top: 4px;
+  font-size: 7pt;
+  text-align: center;
+  font-style: italic;
+}
+
+@media print {
+  @page { size: A4 landscape; margin: 6mm; }
+  body { background: white !important; }
+  .no-print { display: none !important; }
+  .dtr-page {
+    width: 285mm;
+    padding: 0;
+    page-break-after: always;
+  }
+  .dtr-cell-input { color: black; }
+}
+
