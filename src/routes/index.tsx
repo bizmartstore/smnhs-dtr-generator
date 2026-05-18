@@ -384,8 +384,12 @@ function LogsPanel() {
     const unknown = parsed.filter((l) => !knownEmpNos.has(l.empNo));
     if (mode === "replace") store.replaceLogs(parsed);
     else store.addLogs(parsed);
+    const dates = parsed.map((l) => l.date).sort();
+    const range = dates.length
+      ? ` · ${dates[0]} → ${dates[dates.length - 1]}`
+      : "";
     toast.success(
-      `Imported ${parsed.length} log${parsed.length === 1 ? "" : "s"}` +
+      `Imported ${parsed.length} log${parsed.length === 1 ? "" : "s"}${range}` +
         (unknown.length
           ? ` · ${unknown.length} reference unknown employees`
           : "")
