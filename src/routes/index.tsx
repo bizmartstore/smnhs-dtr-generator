@@ -230,6 +230,7 @@ function EmployeesPanel() {
   };
 
   return (
+    <div className="space-y-6">
     <div className="grid gap-6 md:grid-cols-[1fr_2fr]">
       <Card>
         <CardHeader>
