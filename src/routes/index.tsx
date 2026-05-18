@@ -144,7 +144,7 @@ function BatchEmployeesPanel() {
       toast.error("No new employees parsed");
       return;
     }
-    store.setEmployees([...store.state.employees, ...toAdd]);
+    for (const e of toAdd) void store.addEmployee(e);
     toast.success(
       `Added ${toAdd.length} employee${toAdd.length === 1 ? "" : "s"}` +
         (skipped ? ` · ${skipped} skipped (duplicate/invalid)` : "")
@@ -382,8 +382,11 @@ function LogsPanel() {
       return;
     }
     const unknown = parsed.filter((l) => !knownEmpNos.has(l.empNo));
-    if (mode === "replace") store.replaceLogs(parsed);
-    else store.addLogs(parsed);
+    if (mode === "replace") {
+      void store.clearLogs().then(() => store.addLogs(parsed));
+    } else {
+      void store.addLogs(parsed);
+    }
     const dates = parsed.map((l) => l.date).sort();
     const range = dates.length
       ? ` · ${dates[0]} → ${dates[dates.length - 1]}`
