@@ -105,6 +105,94 @@ function Index() {
   );
 }
 
+function BatchEmployeesPanel() {
+  const store = useDtrStore();
+  const [text, setText] = useState("");
+  const [amA, setAmA] = useState("08:30");
+  const [amD, setAmD] = useState("");
+  const [pmA, setPmA] = useState("");
+  const [pmD, setPmD] = useState("17:30");
+
+  const importBatch = () => {
+    const lines = text.split(/\r?\n/);
+    const existing = new Set(store.state.employees.map((e) => e.empNo));
+    const toAdd: Employee[] = [];
+    let skipped = 0;
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      // Accept "empNo, name" or "empNo<TAB>name" or "empNo  name"
+      const m = line.match(/^(\S+)[,\t\s]+(.+)$/);
+      if (!m) { skipped++; continue; }
+      const empNo = m[1].trim();
+      const name = m[2].trim();
+      if (!empNo || !name) { skipped++; continue; }
+      if (existing.has(empNo) || toAdd.some((e) => e.empNo === empNo)) {
+        skipped++;
+        continue;
+      }
+      toAdd.push({
+        empNo,
+        name,
+        officialAmArrival: amA || undefined,
+        officialAmDeparture: amD || undefined,
+        officialPmArrival: pmA || undefined,
+        officialPmDeparture: pmD || undefined,
+      });
+    }
+    if (toAdd.length === 0) {
+      toast.error("No new employees parsed");
+      return;
+    }
+    store.setEmployees([...store.state.employees, ...toAdd]);
+    toast.success(
+      `Added ${toAdd.length} employee${toAdd.length === 1 ? "" : "s"}` +
+        (skipped ? ` · ${skipped} skipped (duplicate/invalid)` : "")
+    );
+    setText("");
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Batch add employees</CardTitle>
+        <CardDescription>
+          One per line: <code>EmpNo, Name</code> (comma, tab, or spaces). Default
+          official hours below are applied to every new employee.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Textarea
+          rows={8}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={`1, JOEY ALBERT L. AGNAS\n2, MARIA C. SANTOS\n3, JUAN D. DELA CRUZ`}
+          className="font-mono text-xs"
+        />
+        <div className="grid grid-cols-4 gap-2">
+          <div>
+            <Label>AM Arr.</Label>
+            <Input type="time" value={amA} onChange={(e) => setAmA(e.target.value)} />
+          </div>
+          <div>
+            <Label>AM Dep.</Label>
+            <Input type="time" value={amD} onChange={(e) => setAmD(e.target.value)} />
+          </div>
+          <div>
+            <Label>PM Arr.</Label>
+            <Input type="time" value={pmA} onChange={(e) => setPmA(e.target.value)} />
+          </div>
+          <div>
+            <Label>PM Dep.</Label>
+            <Input type="time" value={pmD} onChange={(e) => setPmD(e.target.value)} />
+          </div>
+        </div>
+        <Button onClick={importBatch} className="w-full">Import employees</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function EmployeesPanel() {
   const store = useDtrStore();
   const [draft, setDraft] = useState<Employee>({
@@ -142,6 +230,7 @@ function EmployeesPanel() {
   };
 
   return (
+    <div className="space-y-6">
     <div className="grid gap-6 md:grid-cols-[1fr_2fr]">
       <Card>
         <CardHeader>
@@ -265,6 +354,9 @@ function EmployeesPanel() {
         </CardContent>
       </Card>
     </div>
+
+      <BatchEmployeesPanel />
+    </div>
   );
 }
 
@@ -292,8 +384,12 @@ function LogsPanel() {
     const unknown = parsed.filter((l) => !knownEmpNos.has(l.empNo));
     if (mode === "replace") store.replaceLogs(parsed);
     else store.addLogs(parsed);
+    const dates = parsed.map((l) => l.date).sort();
+    const range = dates.length
+      ? ` · ${dates[0]} → ${dates[dates.length - 1]}`
+      : "";
     toast.success(
-      `Imported ${parsed.length} log${parsed.length === 1 ? "" : "s"}` +
+      `Imported ${parsed.length} log${parsed.length === 1 ? "" : "s"}${range}` +
         (unknown.length
           ? ` · ${unknown.length} reference unknown employees`
           : "")
@@ -406,6 +502,27 @@ function DtrPanel({
     );
   }, [emp, year, monthIndex0, store.state.logs, store.state.overrides]);
 
+  // Year+month combos that actually have logs for the selected employee
+  const empMonths = useMemo(() => {
+    if (!emp) return [] as { y: number; m: number; count: number }[];
+    const counts: Record<string, number> = {};
+    for (const l of store.state.logs) {
+      if (l.empNo !== emp.empNo) continue;
+      const [y, m] = l.date.split("-");
+      const k = `${y}-${m}`;
+      counts[k] = (counts[k] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([k, count]) => {
+        const [y, m] = k.split("-").map((x) => parseInt(x, 10));
+        return { y, m: m - 1, count };
+      })
+      .sort((a, b) => a.y - b.y || a.m - b.m);
+  }, [emp, store.state.logs]);
+
+  const currentMonthCount =
+    empMonths.find((x) => x.y === year && x.m === monthIndex0)?.count ?? 0;
+
   return (
     <Card>
       <CardHeader>
@@ -456,6 +573,44 @@ function DtrPanel({
             </Select>
           </div>
         </div>
+
+        {emp && (
+          <div className="text-xs text-muted-foreground">
+            {empMonths.length === 0 ? (
+              <span className="text-destructive">
+                No raw logs found for #{emp.empNo}. Paste logs in the "Raw Logs" tab first.
+              </span>
+            ) : (
+              <>
+                Logs available for{" "}
+                {empMonths.map((x, i) => {
+                  const active = x.y === year && x.m === monthIndex0;
+                  return (
+                    <button
+                      key={`${x.y}-${x.m}`}
+                      type="button"
+                      onClick={() => {
+                        setYear(x.y);
+                        setMonthIndex0(x.m);
+                      }}
+                      className={
+                        "underline mr-2 " +
+                        (active ? "font-bold text-foreground" : "hover:text-foreground")
+                      }
+                    >
+                      {MONTHS[x.m].slice(0, 3)} {x.y} ({x.count})
+                    </button>
+                  );
+                })}
+                {currentMonthCount === 0 && (
+                  <span className="text-destructive">
+                    · Current selection ({MONTHS[monthIndex0]} {year}) has 0 logs.
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {emp && (
           <div className="flex flex-wrap gap-2">
