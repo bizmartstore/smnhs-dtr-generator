@@ -43,7 +43,7 @@ export function DtrSheet({
         <div className="dtr-name">{employee.name || "\u00A0"}</div>
         <div className="dtr-name-label">(Name)</div>
         <div className="dtr-month-row">
-          <span className="dtr-italic">For the Month of</span>
+          <span className="dtr-italic dtr-month-label">For the Month of</span>
           <span className="dtr-month-value">
             {MONTHS[monthIndex0].toUpperCase()} {year}
           </span>
@@ -51,16 +51,16 @@ export function DtrSheet({
         <div className="dtr-official">
           <div className="dtr-official-left">
             <div className="dtr-italic">Official hours for arrival and</div>
-            <div className="dtr-italic dtr-center">departure</div>
+            <div className="dtr-italic">departure</div>
           </div>
           <div className="dtr-official-right">
-            <div>
-              <span className="dtr-italic">Regular days</span>{" "}
-              <span className="dtr-official-time">{official}</span>
+            <div className="dtr-official-line">
+              <span className="dtr-italic">Regular days</span>
+              <span className="dtr-official-time">{official || "\u00A0"}</span>
             </div>
-            <div>
-              <span className="dtr-italic">Saturdays</span>{" "}
-              <span className="dtr-italic dtr-underline">As office requires</span>
+            <div className="dtr-official-line">
+              <span className="dtr-italic">Saturdays</span>
+              <span className="dtr-italic">As office requires</span>
             </div>
           </div>
         </div>

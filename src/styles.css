@@ -158,15 +158,17 @@
   color: black;
   font-family: "Times New Roman", Times, serif;
   box-sizing: border-box;
+  align-items: stretch;
 }
 
 .dtr-sheet {
   font-size: 8pt;
-  line-height: 1.15;
+  line-height: 1.2;
   color: black;
   background: white;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .dtr-top { text-align: center; }
@@ -182,19 +184,25 @@
 }
 .dtr-name-label { font-size: 7pt; font-style: italic; margin-bottom: 4px; }
 
+/* "For the Month of" on the LEFT, MONTH YEAR underline on the RIGHT.
+   The underline width matches the right-column official-hours block
+   so it aligns with "Regular days  10:00 AM-5:00 PM" below. */
 .dtr-month-row {
   display: flex;
   align-items: baseline;
-  justify-content: center;
-  gap: 6px;
+  justify-content: flex-start;
   margin-top: 2px;
+  font-size: 7.5pt;
 }
+.dtr-month-label { flex: 0 0 38%; text-align: left; padding-left: 2mm; }
 .dtr-month-value {
+  flex: 1;
   border-bottom: 1px solid black;
   font-weight: bold;
   text-align: center;
-  padding: 0 6px;
+  padding: 0 4px;
   white-space: nowrap;
+  margin-right: 2mm;
 }
 .dtr-italic { font-style: italic; }
 .dtr-underline { border-bottom: 1px solid black; }
@@ -202,14 +210,25 @@
 
 .dtr-official {
   display: flex;
-  gap: 6px;
-  margin-top: 4px;
+  gap: 4px;
+  margin-top: 2px;
   margin-bottom: 4px;
   text-align: left;
   font-size: 7.5pt;
 }
-.dtr-official-left { flex: 0 0 38%; }
-.dtr-official-right { flex: 1; }
+.dtr-official-left {
+  flex: 0 0 38%;
+  padding-left: 2mm;
+}
+.dtr-official-right {
+  flex: 1;
+  margin-right: 2mm;
+}
+.dtr-official-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
 .dtr-official-time {
   font-weight: bold;
   font-family: Arial, sans-serif;
@@ -221,13 +240,14 @@
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 7.5pt;
+  flex: 1;
 }
 .dtr-table th,
 .dtr-table td {
   border: 1px solid black;
   text-align: center;
   padding: 0 1px;
-  height: 12px;
+  height: 1%;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -280,6 +300,22 @@
   font-style: italic;
 }
 
+/* Aggressively hide the Lovable "Edit with Lovable" badge in the preview */
+#lovable-badge,
+[id^="lovable-badge"],
+[class*="lovable-badge"],
+a[href*="lovable.dev"][target="_blank"],
+iframe[src*="lovable.dev/badge"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+}
+
 @media print {
   @page { size: A4 landscape; margin: 0; }
   html, body {
@@ -288,18 +324,26 @@
     padding: 0 !important;
     width: 297mm;
     height: 210mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
+  body * { visibility: hidden !important; }
+  .dtr-page, .dtr-page * { visibility: visible !important; }
   .no-print, .print\:hidden { display: none !important; }
   .hidden.print\:block { display: block !important; }
   .dtr-page {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 297mm;
     height: 210mm;
     min-height: 210mm;
-    padding: 5mm 5mm;
-    margin: 0 auto;
+    padding: 4mm 4mm;
+    margin: 0;
     box-sizing: border-box;
     page-break-after: always;
   }
+  .dtr-sheet { height: 100%; }
   .dtr-cell-input { color: black; }
 }
 

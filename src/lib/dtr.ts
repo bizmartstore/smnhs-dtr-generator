@@ -41,64 +41,78 @@ export function dateKey(year: number, monthIndex0: number, day: number) {
   return `${year}-${pad(monthIndex0 + 1)}-${pad(day)}`;
 }
 
-// Parse raw logs text. Accepts header line "EmployeeNumber DateTime" (optional)
-// and lines like: "1 11/3/2025 9:56"  OR  "1\t11/3/2025\t9:56"
-// Date formats supported: M/D/YYYY or YYYY-MM-DD
+// Permissive raw-log parser. Auto-detects EmpNo + Date + Time anywhere on a
+// line, ignoring extra whitespace, tabs, commas, and headers. Accepts:
+//   "1 4/24/2024 13:38", "1\t4/24/2024\t1:38 PM",
+//   "1, 04-24-2024, 13:38", "2024-04-24 1 13:38", multi-triplet lines, etc.
+const DATE_RE =
+  /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b|\b(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/g;
+const TIME_RE = /\b(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm.]*)?/g;
+
 export function parseRawLogs(text: string): RawLog[] {
   const logs: RawLog[] = [];
   const lines = text.split(/\r?\n/);
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
-    if (/^employee/i.test(line)) continue; // header
-    // tokens separated by whitespace
-    const tokens = line.split(/\s+/);
-    // Could be 3 tokens (emp, date, time) or could be many concatenated triplets
-    // Handle case where the entire blob was pasted on one line by chunking.
-    if (tokens.length >= 3 && tokens.length % 3 === 0) {
-      for (let i = 0; i < tokens.length; i += 3) {
-        const parsed = tryParseTriplet(tokens[i], tokens[i + 1], tokens[i + 2]);
-        if (parsed) logs.push(parsed);
-      }
-    } else if (tokens.length >= 3) {
-      const parsed = tryParseTriplet(tokens[0], tokens[1], tokens[2]);
-      if (parsed) logs.push(parsed);
+    if (/^employee/i.test(line) && !/\d/.test(line.split(/\s+/)[0])) continue;
+
+    // Find all dates and times in the line
+    const dates: { idx: number; date: string }[] = [];
+    const times: { idx: number; time: string }[] = [];
+    let m: RegExpExecArray | null;
+    DATE_RE.lastIndex = 0;
+    while ((m = DATE_RE.exec(line))) {
+      const d = m[1]
+        ? normalizeDateParts(m[1], m[2], m[3])
+        : normalizeDateParts(m[5], m[6], m[4]);
+      if (d) dates.push({ idx: m.index, date: d });
+    }
+    TIME_RE.lastIndex = 0;
+    while ((m = TIME_RE.exec(line))) {
+      const t = normalizeTimeParts(m[1], m[2], m[3]);
+      if (t) times.push({ idx: m.index, time: t });
+    }
+
+    if (dates.length === 0 || times.length === 0) continue;
+
+    // Pair up: triplet = (empNo before first date, date[i], time[i])
+    const n = Math.min(dates.length, times.length);
+    for (let i = 0; i < n; i++) {
+      const startIdx = i === 0 ? 0 : Math.max(dates[i - 1].idx, times[i - 1].idx);
+      // Find empNo as last token before this date that isn't itself a date/time
+      const prefix = line.slice(startIdx, dates[i].idx);
+      const tokens = prefix.split(/[\s,;|]+/).filter(Boolean);
+      const empNo = tokens.length ? tokens[tokens.length - 1] : "";
+      if (!empNo || !/^\d+$/.test(empNo)) continue;
+      logs.push({ empNo, date: dates[i].date, time: times[i].time });
     }
   }
   return logs;
 }
 
-function tryParseTriplet(empNo: string, dateStr: string, timeStr: string): RawLog | null {
-  const date = normalizeDate(dateStr);
-  const time = normalizeTime(timeStr);
-  if (!date || !time || !empNo) return null;
-  return { empNo: empNo.trim(), date, time };
+function normalizeDateParts(a: string, b: string, c: string): string | null {
+  // a/b/c can be M/D/YYYY or YYYY/M/D (when c is the 4-digit year passed as third)
+  let year: number, month: number, day: number;
+  if (a.length === 4) {
+    year = +a; month = +b; day = +c;
+  } else {
+    month = +a; day = +b; year = +c;
+    if (year < 100) year += year < 50 ? 2000 : 1900;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900) return null;
+  return `${year}-${pad(month)}-${pad(day)}`;
 }
 
-function normalizeDate(s: string): string | null {
-  // M/D/YYYY
-  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) {
-    const month = parseInt(m[1], 10);
-    const day = parseInt(m[2], 10);
-    const year = parseInt(m[3], 10);
-    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-    return `${year}-${pad(month)}-${pad(day)}`;
+function normalizeTimeParts(hStr: string, mStr: string, ampm?: string): string | null {
+  let h = parseInt(hStr, 10);
+  const min = parseInt(mStr, 10);
+  if (isNaN(h) || isNaN(min) || min < 0 || min > 59 || h < 0 || h > 23) return null;
+  if (ampm) {
+    const p = ampm.toLowerCase().replace(/\./g, "");
+    if (p.startsWith("p") && h < 12) h += 12;
+    if (p.startsWith("a") && h === 12) h = 0;
   }
-  // YYYY-MM-DD
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (m) {
-    return `${m[1]}-${pad(parseInt(m[2], 10))}-${pad(parseInt(m[3], 10))}`;
-  }
-  return null;
-}
-
-function normalizeTime(s: string): string | null {
-  const m = s.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
   return `${pad(h)}:${pad(min)}`;
 }
 
