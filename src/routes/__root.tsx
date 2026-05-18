@@ -72,14 +72,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "SMNHS DTR GENERATOR" },
+      { name: "description", content: "Time Keeper Pro generates Daily Time Records (DTRs) for employees, allowing manual input or raw log processing." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "SMNHS DTR GENERATOR" },
+      { property: "og:description", content: "Time Keeper Pro generates Daily Time Records (DTRs) for employees, allowing manual input or raw log processing." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "SMNHS DTR GENERATOR" },
+      { name: "twitter:description", content: "Time Keeper Pro generates Daily Time Records (DTRs) for employees, allowing manual input or raw log processing." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/54de1536-f752-45bb-affa-293d74da2dad/id-preview-aaf8e766--ef474858-abdc-4015-9ca5-6357e6b36a0d.lovable.app-1779077315605.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/54de1536-f752-45bb-affa-293d74da2dad/id-preview-aaf8e766--ef474858-abdc-4015-9ca5-6357e6b36a0d.lovable.app-1779077315605.png" },
     ],
     links: [
       {
