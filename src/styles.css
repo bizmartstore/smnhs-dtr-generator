@@ -226,8 +226,9 @@
 }
 .dtr-official-line {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 6px;
+  align-items: baseline;
 }
 .dtr-official-time {
   font-weight: bold;
