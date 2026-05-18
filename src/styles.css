@@ -185,14 +185,16 @@
 .dtr-month-row {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
   margin-top: 2px;
 }
 .dtr-month-value {
-  flex: 1;
   border-bottom: 1px solid black;
   font-weight: bold;
   text-align: center;
+  padding: 0 6px;
+  white-space: nowrap;
 }
 .dtr-italic { font-style: italic; }
 .dtr-underline { border-bottom: 1px solid black; }
