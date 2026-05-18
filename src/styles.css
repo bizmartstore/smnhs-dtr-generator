@@ -219,6 +219,7 @@
 .dtr-official-left {
   flex: 0 0 38%;
   padding-left: 2mm;
+  white-space: nowrap;
 }
 .dtr-official-right {
   flex: 1;
