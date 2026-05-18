@@ -105,6 +105,94 @@ function Index() {
   );
 }
 
+function BatchEmployeesPanel() {
+  const store = useDtrStore();
+  const [text, setText] = useState("");
+  const [amA, setAmA] = useState("08:30");
+  const [amD, setAmD] = useState("");
+  const [pmA, setPmA] = useState("");
+  const [pmD, setPmD] = useState("17:30");
+
+  const importBatch = () => {
+    const lines = text.split(/\r?\n/);
+    const existing = new Set(store.state.employees.map((e) => e.empNo));
+    const toAdd: Employee[] = [];
+    let skipped = 0;
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      // Accept "empNo, name" or "empNo<TAB>name" or "empNo  name"
+      const m = line.match(/^(\S+)[,\t\s]+(.+)$/);
+      if (!m) { skipped++; continue; }
+      const empNo = m[1].trim();
+      const name = m[2].trim();
+      if (!empNo || !name) { skipped++; continue; }
+      if (existing.has(empNo) || toAdd.some((e) => e.empNo === empNo)) {
+        skipped++;
+        continue;
+      }
+      toAdd.push({
+        empNo,
+        name,
+        officialAmArrival: amA || undefined,
+        officialAmDeparture: amD || undefined,
+        officialPmArrival: pmA || undefined,
+        officialPmDeparture: pmD || undefined,
+      });
+    }
+    if (toAdd.length === 0) {
+      toast.error("No new employees parsed");
+      return;
+    }
+    store.setEmployees([...store.state.employees, ...toAdd]);
+    toast.success(
+      `Added ${toAdd.length} employee${toAdd.length === 1 ? "" : "s"}` +
+        (skipped ? ` · ${skipped} skipped (duplicate/invalid)` : "")
+    );
+    setText("");
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Batch add employees</CardTitle>
+        <CardDescription>
+          One per line: <code>EmpNo, Name</code> (comma, tab, or spaces). Default
+          official hours below are applied to every new employee.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Textarea
+          rows={8}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={`1, JOEY ALBERT L. AGNAS\n2, MARIA C. SANTOS\n3, JUAN D. DELA CRUZ`}
+          className="font-mono text-xs"
+        />
+        <div className="grid grid-cols-4 gap-2">
+          <div>
+            <Label>AM Arr.</Label>
+            <Input type="time" value={amA} onChange={(e) => setAmA(e.target.value)} />
+          </div>
+          <div>
+            <Label>AM Dep.</Label>
+            <Input type="time" value={amD} onChange={(e) => setAmD(e.target.value)} />
+          </div>
+          <div>
+            <Label>PM Arr.</Label>
+            <Input type="time" value={pmA} onChange={(e) => setPmA(e.target.value)} />
+          </div>
+          <div>
+            <Label>PM Dep.</Label>
+            <Input type="time" value={pmD} onChange={(e) => setPmD(e.target.value)} />
+          </div>
+        </div>
+        <Button onClick={importBatch} className="w-full">Import employees</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function EmployeesPanel() {
   const store = useDtrStore();
   const [draft, setDraft] = useState<Employee>({
