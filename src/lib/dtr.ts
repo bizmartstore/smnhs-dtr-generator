@@ -194,6 +194,8 @@ export function computeUndertime(rec: DayRecord, emp: Employee): { h: number; m:
   const offMins = officialTotalMinutes(emp);
   const actMins = actualTotalMinutes(rec);
   if (offMins <= 0) return { h: 0, m: 0 };
+  // No actual time entries for the day → no undertime (blank day = 0:00)
+  if (actMins <= 0) return { h: 0, m: 0 };
   const diff = offMins - actMins;
   if (diff <= 0) return { h: 0, m: 0 };
   return { h: Math.floor(diff / 60), m: diff % 60 };
