@@ -624,6 +624,43 @@ function DtrPanel({
               Print (3 per page, landscape A4)
             </Button>
             <Button
+              variant="secondary"
+              onClick={async () => {
+                const node = document.getElementById("dtr-pdf-source");
+                if (!node) {
+                  toast.error("Preview not ready");
+                  return;
+                }
+                try {
+                  toast.info("Generating PDF…");
+                  const canvas = await html2canvas(node, {
+                    scale: 2,
+                    backgroundColor: "#ffffff",
+                    useCORS: true,
+                    windowWidth: node.scrollWidth,
+                  });
+                  const pdf = new jsPDF({
+                    orientation: "landscape",
+                    unit: "mm",
+                    format: "a4",
+                  });
+                  const imgData = canvas.toDataURL("image/png");
+                  // Fit canvas into A4 landscape (297 x 210)
+                  pdf.addImage(imgData, "PNG", 0, 0, 297, 210);
+                  pdf.save(
+                    `DTR_${emp.empNo}_${MONTHS[monthIndex0]}_${year}.pdf`
+                  );
+                  toast.success("PDF downloaded");
+                } catch (err) {
+                  console.error(err);
+                  toast.error("Failed to generate PDF");
+                }
+              }}
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+            <Button
               variant="outline"
               onClick={() => {
                 store.clearOverrides(emp.empNo);
@@ -637,7 +674,7 @@ function DtrPanel({
 
         {emp ? (
           <div className="border rounded-md p-4 overflow-auto bg-white print:hidden">
-            <div className="dtr-page" style={{ width: "297mm" }}>
+            <div id="dtr-pdf-source" className="dtr-page" style={{ width: "297mm" }}>
               <DtrSheet
                 employee={emp}
                 year={year}
@@ -665,8 +702,10 @@ function DtrPanel({
               />
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Preview shows the print layout (3 copies per page). The first
-              copy is editable — click any time cell to change it.
+              Preview shows the print layout (3 copies per page, with dashed
+              cut-lines). The first copy is editable — click any time cell to
+              change it. Use <strong>Download PDF</strong> for a layout that
+              matches this preview exactly.
             </p>
           </div>
         ) : (
