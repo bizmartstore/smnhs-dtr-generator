@@ -358,9 +358,13 @@ iframe[src*="lovable.dev/badge"] {
   /* Shift the split so the right column has enough room for "Regular days"
      and "As office requires" to stay on a single line each, with the month
      underline starting exactly under "Regular days". */
-  .dtr-month-label { flex: 0 0 42% !important; }
-  .dtr-official-left { flex: 0 0 42% !important; }
-  .dtr-official-line { gap: 10px !important; padding-left: 2px; flex-wrap: nowrap !important; }
+  .dtr-month-label { flex: 0 0 45% !important; }
+  .dtr-official-left { flex: 0 0 45% !important; }
+  .dtr-official-line { gap: 0 !important; padding-left: 2px; flex-wrap: nowrap !important; justify-content: flex-start !important; }
   .dtr-official-line > span { white-space: nowrap !important; }
+  /* Fix the width of the first label ("Regular days" / "Saturdays") so the
+     value next to it ("10:00 AM-5:00 PM" / "As office requires") aligns
+     vertically across both rows. */
+  .dtr-official-line > span:first-child { flex: 0 0 22mm !important; }
 }
 
