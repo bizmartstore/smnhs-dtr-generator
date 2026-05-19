@@ -348,5 +348,10 @@ iframe[src*="lovable.dev/badge"] {
   }
   .dtr-sheet { height: 100%; }
   .dtr-cell-input { color: black; }
+  /* Narrow the month underline so it starts aligned with "Regular days" */
+  .dtr-month-label { flex: 0 0 52% !important; }
+  .dtr-official-left { flex: 0 0 52% !important; }
+  /* More breathing room between "and" / "Regular days" */
+  .dtr-official-line { gap: 14px !important; padding-left: 6px; }
 }
 
