@@ -355,10 +355,12 @@ iframe[src*="lovable.dev/badge"] {
   }
   .dtr-sheet { height: 100%; }
   .dtr-cell-input { color: black; }
-  /* Narrow the month underline so it starts aligned with "Regular days" */
-  .dtr-month-label { flex: 0 0 52% !important; }
-  .dtr-official-left { flex: 0 0 52% !important; }
-  /* More breathing room between "and" / "Regular days" */
-  .dtr-official-line { gap: 14px !important; padding-left: 6px; }
+  /* Shift the split so the right column has enough room for "Regular days"
+     and "As office requires" to stay on a single line each, with the month
+     underline starting exactly under "Regular days". */
+  .dtr-month-label { flex: 0 0 42% !important; }
+  .dtr-official-left { flex: 0 0 42% !important; }
+  .dtr-official-line { gap: 10px !important; padding-left: 2px; flex-wrap: nowrap !important; }
+  .dtr-official-line > span { white-space: nowrap !important; }
 }
 
