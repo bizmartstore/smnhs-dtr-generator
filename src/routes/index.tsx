@@ -21,7 +21,9 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { Trash2, Printer } from "lucide-react";
+import { Trash2, Printer, FileDown } from "lucide-react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 import { useDtrStore } from "@/lib/dtr-store";
 import {
