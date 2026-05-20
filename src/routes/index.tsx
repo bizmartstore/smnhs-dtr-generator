@@ -338,10 +338,10 @@ function EmployeesPanel() {
             {store.state.employees.map((e) => (
               <div
                 key={e.empNo}
-                className="p-3 flex items-center justify-between text-sm"
+                className="p-3 flex items-center justify-between text-sm gap-2"
               >
-                <div>
-                  <div className="font-medium">
+                <div className="min-w-0">
+                  <div className="font-medium truncate">
                     #{e.empNo} — {e.name}
                   </div>
                   <div className="text-muted-foreground text-xs">
@@ -350,13 +350,16 @@ function EmployeesPanel() {
                     {e.officialPmArrival || "—"} / {e.officialPmDeparture || "—"}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => store.removeEmployee(e.empNo)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <EditEmployeeButton employee={e} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => store.removeEmployee(e.empNo)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
