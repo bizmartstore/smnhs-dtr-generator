@@ -372,6 +372,112 @@ function EmployeesPanel() {
   );
 }
 
+function EditEmployeeButton({ employee }: { employee: Employee }) {
+  const store = useDtrStore();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Employee>(employee);
+
+  const onOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (v) setDraft(employee);
+  };
+
+  const save = async () => {
+    if (!draft.empNo.trim() || !draft.name.trim()) {
+      toast.error("Employee No. and Name are required");
+      return;
+    }
+    try {
+      await store.saveEmployee(employee.empNo, {
+        ...draft,
+        empNo: draft.empNo.trim(),
+        name: draft.name.trim(),
+      });
+      toast.success("Employee updated");
+      setOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <Button variant="ghost" size="icon" onClick={() => onOpenChange(true)}>
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit employee</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Employee No.</Label>
+            <Input
+              value={draft.empNo}
+              onChange={(e) => setDraft({ ...draft, empNo: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label>Name</Label>
+            <Input
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>Official AM Arrival</Label>
+              <Input
+                type="time"
+                value={draft.officialAmArrival || ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, officialAmArrival: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <Label>Official AM Departure</Label>
+              <Input
+                type="time"
+                value={draft.officialAmDeparture || ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, officialAmDeparture: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <Label>Official PM Arrival</Label>
+              <Input
+                type="time"
+                value={draft.officialPmArrival || ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, officialPmArrival: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <Label>Official PM Departure</Label>
+              <Input
+                type="time"
+                value={draft.officialPmDeparture || ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, officialPmDeparture: e.target.value })
+                }
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={save}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+
 function LogsPanel() {
   const store = useDtrStore();
   const [text, setText] = useState("");
