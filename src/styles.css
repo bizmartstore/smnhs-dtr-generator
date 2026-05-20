@@ -365,6 +365,6 @@ iframe[src*="lovable.dev/badge"] {
   /* Fix the width of the first label ("Regular days" / "Saturdays") so the
      value next to it ("10:00 AM-5:00 PM" / "As office requires") aligns
      vertically across both rows. */
-  .dtr-official-line > span:first-child { flex: 0 0 22mm !important; }
+  .dtr-official-line > span:first-child { flex: 0 0 17mm !important; }
 }
 
