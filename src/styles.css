@@ -161,11 +161,16 @@
   align-items: stretch;
 }
 
-/* Dashed cut-line between the 3 DTR sheets so users know where to cut */
+/* Dashed cut-line centered in the gap between the 3 DTR sheets so the
+   distance from each sheet's content to the dashed line is equal. */
 .dtr-sheet + .dtr-sheet {
   border-left: 1px dashed #000;
   padding-left: 3mm;
   margin-left: -3mm;
+}
+.dtr-sheet:not(:last-child) {
+  padding-right: 3mm;
+  margin-right: -3mm;
 }
 
 .dtr-sheet {
