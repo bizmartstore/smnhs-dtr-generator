@@ -177,6 +177,46 @@ export function useDtrStore() {
         if (error) console.error("[updateEmployee]", error);
       }
     },
+    async saveEmployee(oldEmpNo: string, updated: Employee) {
+      const newEmpNo = updated.empNo.trim();
+      if (!newEmpNo) throw new Error("Employee No. required");
+      const renaming = newEmpNo !== oldEmpNo;
+      if (renaming && state.employees.some((e) => e.empNo === newEmpNo)) {
+        throw new Error("Employee No. already exists");
+      }
+      const nextEmployees = state.employees
+        .filter((e) => e.empNo !== oldEmpNo && e.empNo !== newEmpNo)
+        .concat({ ...updated, empNo: newEmpNo });
+      let nextLogs = state.logs;
+      let nextOverrides = state.overrides;
+      if (renaming) {
+        nextLogs = state.logs.map((l) =>
+          l.empNo === oldEmpNo ? { ...l, empNo: newEmpNo } : l
+        );
+        nextOverrides = {};
+        for (const k of Object.keys(state.overrides)) {
+          const [emp, day] = k.split("|");
+          const targetKey = emp === oldEmpNo ? `${newEmpNo}|${day}` : k;
+          nextOverrides[targetKey] = state.overrides[k];
+        }
+      }
+      setState({ employees: nextEmployees, logs: nextLogs, overrides: nextOverrides });
+
+      if (renaming) {
+        const { error: e1 } = await supabase
+          .from("dtr_logs").update({ emp_no: newEmpNo }).eq("emp_no", oldEmpNo);
+        if (e1) console.error("[saveEmployee logs]", e1);
+        const { error: e2 } = await supabase
+          .from("dtr_overrides").update({ emp_no: newEmpNo }).eq("emp_no", oldEmpNo);
+        if (e2) console.error("[saveEmployee overrides]", e2);
+        const { error: e3 } = await supabase
+          .from("dtr_employees").delete().eq("emp_no", oldEmpNo);
+        if (e3) console.error("[saveEmployee delete old]", e3);
+      }
+      const { error: e4 } = await supabase
+        .from("dtr_employees").upsert(empToRow({ ...updated, empNo: newEmpNo }));
+      if (e4) console.error("[saveEmployee upsert]", e4);
+    },
     async removeEmployee(empNo: string) {
       setState({ employees: state.employees.filter((e) => e.empNo !== empNo) });
       const { error } = await supabase.from("dtr_employees").delete().eq("emp_no", empNo);
