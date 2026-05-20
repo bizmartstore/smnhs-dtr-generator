@@ -427,6 +427,23 @@ function LogsPanel() {
               Replace all
             </Button>
             <Button
+              variant="secondary"
+              onClick={() => {
+                // Combine 2-column paste (EmpNo | DateTime) into a single
+                // normalized "EmpNo Date Time" per line. Collapses tabs and
+                // multiple spaces so the parser can append cleanly.
+                const normalized = text
+                  .split(/\r?\n/)
+                  .map((l) => l.replace(/[\t ]+/g, " ").trim())
+                  .filter(Boolean)
+                  .join("\n");
+                setText(normalized);
+                toast.success("Columns combined — ready to append");
+              }}
+            >
+              Combine columns
+            </Button>
+            <Button
               variant="ghost"
               onClick={() => {
                 store.clearLogs();

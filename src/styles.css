@@ -172,6 +172,12 @@
   padding-right: 3mm;
   margin-right: -3mm;
 }
+/* Nudge the 2nd dashed cut-line (border on the 3rd sheet) slightly
+   to the left so left/right distance to the line matches visually. */
+.dtr-sheet:nth-child(3) {
+  margin-left: -4mm;
+  padding-left: 4mm;
+}
 
 .dtr-sheet {
   font-size: 8pt;
