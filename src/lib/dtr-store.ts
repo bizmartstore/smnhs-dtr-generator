@@ -127,7 +127,16 @@ async function refreshEmployees() {
 }
 async function refreshLogs() {
   const { data } = await supabase.from("dtr_logs").select("*");
-  setState({ logs: (data ?? []).map((r) => logFromRow(r as LogRow)) });
+  const seen = new Set<string>();
+  const deduped: RawLog[] = [];
+  for (const r of (data ?? []) as LogRow[]) {
+    const l = logFromRow(r);
+    const k = `${l.empNo}|${l.date}|${l.time}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    deduped.push(l);
+  }
+  setState({ logs: deduped });
 }
 async function refreshOverrides() {
   const { data } = await supabase.from("dtr_overrides").select("*");
