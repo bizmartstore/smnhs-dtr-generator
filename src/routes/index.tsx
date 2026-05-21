@@ -545,16 +545,29 @@ function LogsPanel() {
             <Button
               variant="secondary"
               onClick={() => {
-                // Combine 2-column paste (EmpNo | DateTime) into a single
-                // normalized "EmpNo Date Time" per line. Collapses tabs and
-                // multiple spaces so the parser can append cleanly.
-                const normalized = text
-                  .split(/\r?\n/)
-                  .map((l) => l.replace(/[\t ]+/g, " ").trim())
-                  .filter(Boolean)
-                  .join("\n");
-                setText(normalized);
-                toast.success("Columns combined — ready to append");
+                // Combine into normalized "EmpNo Date Time" per line.
+                // Handles: (a) tab/space separated rows, (b) bare EmpNo on
+                // one line + "Date Time" on the next, (c) one giant line
+                // like "1 1/5/2026 9:00 1 1/7/2026 10:06 ...".
+                const DATE = /^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$|^\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}$/;
+                const TIME = /^\d{1,2}:\d{2}(?::\d{2})?$/;
+                const AMPM = /^[AaPp][Mm.]*$/;
+                const toks = text.split(/[\s,;|]+/).filter(Boolean);
+                const out: string[] = [];
+                let i = 0;
+                while (i < toks.length) {
+                  const emp = toks[i], date = toks[i + 1], time = toks[i + 2];
+                  if (emp && /^\d+$/.test(emp) && date && DATE.test(date) && time && TIME.test(time)) {
+                    let extra = "";
+                    if (toks[i + 3] && AMPM.test(toks[i + 3])) { extra = " " + toks[i + 3]; i += 1; }
+                    out.push(`${emp} ${date} ${time}${extra}`);
+                    i += 3;
+                  } else {
+                    i += 1;
+                  }
+                }
+                setText(out.join("\n"));
+                toast.success(`Combined ${out.length} entries — ready to append`);
               }}
             >
               Combine columns

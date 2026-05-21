@@ -190,13 +190,35 @@ export function fmt12(t: string): string {
 // Undertime: difference between actual span worked and official span.
 // Returns { hours, minutes } (>=0). If insufficient data, returns zeros.
 export function computeUndertime(rec: DayRecord, emp: Employee): { h: number; m: number } {
-  // Need at least one official pair to compare
   const offMins = officialTotalMinutes(emp);
-  const actMins = actualTotalMinutes(rec);
   if (offMins <= 0) return { h: 0, m: 0 };
-  // No actual time entries for the day → no undertime (blank day = 0:00)
+  const actMins = actualTotalMinutes(rec);
   if (actMins <= 0) return { h: 0, m: 0 };
-  const diff = offMins - actMins;
+
+  // Per-segment undertime: late arrival + early departure for each of AM/PM.
+  let diff = 0;
+  const offAmA = toMin(emp.officialAmArrival);
+  const offAmD = toMin(emp.officialAmDeparture);
+  const offPmA = toMin(emp.officialPmArrival);
+  const offPmD = toMin(emp.officialPmDeparture);
+  const aA = toMin(rec.amArrival);
+  const aD = toMin(rec.amDeparture);
+  const pA = toMin(rec.pmArrival);
+  const pD = toMin(rec.pmDeparture);
+
+  if (offAmA != null && aA != null && aA > offAmA) diff += aA - offAmA;
+  if (offAmD != null && aD != null && aD < offAmD) diff += offAmD - aD;
+  if (offPmA != null && pA != null && pA > offPmA) diff += pA - offPmA;
+  if (offPmD != null && pD != null && pD < offPmD) diff += offPmD - pD;
+
+  // Fallback: outer bounds only (e.g. official 8:30-17:30 with 1h lunch).
+  if (
+    offAmA == null && offAmD == null && offPmA == null && offPmD == null
+  ) {
+    const totalDiff = offMins - actMins;
+    if (totalDiff > 0) diff = totalDiff;
+  }
+
   if (diff <= 0) return { h: 0, m: 0 };
   return { h: Math.floor(diff / 60), m: diff % 60 };
 }
