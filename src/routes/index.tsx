@@ -493,29 +493,29 @@ function LogsPanel() {
     return m;
   }, [store.state.logs]);
 
-  const importLogs = (mode: "append" | "replace") => {
+  const importLogs = async (mode: "append" | "replace") => {
     const parsed = parseRawLogs(text);
     if (parsed.length === 0) {
       toast.error("No valid log lines detected");
       return;
     }
     const unknown = parsed.filter((l) => !knownEmpNos.has(l.empNo));
-    if (mode === "replace") {
-      void store.clearLogs().then(() => store.addLogs(parsed));
-    } else {
-      void store.addLogs(parsed);
-    }
     const dates = parsed.map((l) => l.date).sort();
-    const range = dates.length
-      ? ` · ${dates[0]} → ${dates[dates.length - 1]}`
-      : "";
-    toast.success(
-      `Imported ${parsed.length} log${parsed.length === 1 ? "" : "s"}${range}` +
-        (unknown.length
-          ? ` · ${unknown.length} reference unknown employees`
-          : "")
-    );
-    setText("");
+    const range = dates.length ? ` · ${dates[0]} → ${dates[dates.length - 1]}` : "";
+    const tail = unknown.length ? ` · ${unknown.length} reference unknown employees` : "";
+    try {
+      if (mode === "replace") await store.clearLogs();
+      const res = await store.addLogs(parsed);
+      if (res.error) {
+        toast.error(`Saved ${res.inserted}/${parsed.length}. Error: ${res.error}`);
+      } else {
+        const skip = res.skipped ? ` · ${res.skipped} duplicate${res.skipped === 1 ? "" : "s"} skipped` : "";
+        toast.success(`Imported ${res.inserted} log${res.inserted === 1 ? "" : "s"}${range}${skip}${tail}`);
+      }
+      setText("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to import logs");
+    }
   };
 
   return (
