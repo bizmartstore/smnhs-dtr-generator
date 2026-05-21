@@ -222,16 +222,33 @@ export function useDtrStore() {
       const { error } = await supabase.from("dtr_employees").delete().eq("emp_no", empNo);
       if (error) console.error("[removeEmployee]", error);
     },
-    async addLogs(logs: RawLog[]) {
-      if (logs.length === 0) return;
-      setState({ logs: [...state.logs, ...logs] });
-      const rows = logs.map((l) => ({ emp_no: l.empNo, log_date: l.date, log_time: l.time }));
-      // Chunk inserts to stay under PostgREST payload limits.
+    async addLogs(logs: RawLog[]): Promise<{ inserted: number; skipped: number; error?: string }> {
+      if (logs.length === 0) return { inserted: 0, skipped: 0 };
+      // Dedupe vs. current state AND within the incoming batch.
+      const existing = new Set(state.logs.map((l) => `${l.empNo}|${l.date}|${l.time}`));
+      const fresh: RawLog[] = [];
+      for (const l of logs) {
+        const k = `${l.empNo}|${l.date}|${l.time}`;
+        if (existing.has(k)) continue;
+        existing.add(k);
+        fresh.push(l);
+      }
+      const skipped = logs.length - fresh.length;
+      if (fresh.length === 0) return { inserted: 0, skipped };
+      setState({ logs: [...state.logs, ...fresh] });
+      const rows = fresh.map((l) => ({ emp_no: l.empNo, log_date: l.date, log_time: l.time }));
       const chunk = 500;
+      let firstError: string | undefined;
       for (let i = 0; i < rows.length; i += chunk) {
         const { error } = await supabase.from("dtr_logs").insert(rows.slice(i, i + chunk));
-        if (error) console.error("[addLogs]", error);
+        if (error) {
+          console.error("[addLogs]", error);
+          firstError ||= error.message;
+        }
       }
+      // Resync from DB so realtime can't overwrite us with a stale snapshot.
+      await refreshLogs();
+      return { inserted: fresh.length, skipped, error: firstError };
     },
     async clearLogs() {
       setState({ logs: [] });
