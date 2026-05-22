@@ -538,8 +538,8 @@ function LogsPanel() {
             className="font-mono text-xs"
           />
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => importLogs("append")}>Append</Button>
-            <Button variant="outline" onClick={() => importLogs("replace")}>
+            <Button className="flex-1 sm:flex-none min-w-[110px]" onClick={() => importLogs("append")}>Append</Button>
+            <Button className="flex-1 sm:flex-none min-w-[110px]" variant="outline" onClick={() => importLogs("replace")}>
               Replace all
             </Button>
             <Button
