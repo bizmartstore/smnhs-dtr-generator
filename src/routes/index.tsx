@@ -823,7 +823,8 @@ function DtrPanel({
         )}
 
         {emp ? (
-          <div className="border rounded-md p-4 overflow-auto bg-white print:hidden">
+          <div className="border rounded-md p-2 sm:p-4 overflow-auto bg-white print:hidden dtr-preview-wrap">
+            <div className="dtr-preview-scale">
             <div id="dtr-pdf-source" className="dtr-page" style={{ width: "297mm" }}>
               <DtrSheet
                 employee={emp}
