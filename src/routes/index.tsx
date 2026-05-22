@@ -537,7 +537,7 @@ function LogsPanel() {
             placeholder={`EmployeeNumber DateTime\n1 11/3/2025 9:56\n1 11/3/2025 17:44\n2 11/3/2025 5:49\n2 11/3/2025 12:37`}
             className="font-mono text-xs"
           />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={() => importLogs("append")}>Append</Button>
             <Button variant="outline" onClick={() => importLogs("replace")}>
               Replace all
