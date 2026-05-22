@@ -66,21 +66,21 @@ function Index() {
     <div className="min-h-screen bg-background text-foreground">
       <Toaster />
       <header className="border-b no-print">
-        <div className="container mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold">DTR Generator</h1>
-          <p className="text-sm text-muted-foreground">
-            Civil Service Form No. 48 · Build DTRs from raw biometric logs · Print
-            3 per A4 landscape page
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6">
+          <h1 className="text-lg sm:text-2xl font-bold">DTR Generator</h1>
+          <p className="text-[11px] sm:text-sm text-muted-foreground leading-snug">
+            Civil Service Form No. 48 · Build DTRs from raw biometric logs ·
+            Print 3 per A4 landscape page
           </p>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <main className="container mx-auto px-3 sm:px-4 py-3 sm:py-6 space-y-4 sm:space-y-6">
         <Tabs defaultValue="employees" className="no-print">
-          <TabsList>
-            <TabsTrigger value="employees">Employees</TabsTrigger>
-            <TabsTrigger value="logs">Raw Logs</TabsTrigger>
-            <TabsTrigger value="dtr">Generate DTR</TabsTrigger>
+          <TabsList className="w-full grid grid-cols-3 h-auto">
+            <TabsTrigger value="employees" className="text-xs sm:text-sm py-2">Employees</TabsTrigger>
+            <TabsTrigger value="logs" className="text-xs sm:text-sm py-2">Raw Logs</TabsTrigger>
+            <TabsTrigger value="dtr" className="text-xs sm:text-sm py-2">Generate DTR</TabsTrigger>
           </TabsList>
 
           <TabsContent value="employees" className="mt-4">
@@ -537,12 +537,13 @@ function LogsPanel() {
             placeholder={`EmployeeNumber DateTime\n1 11/3/2025 9:56\n1 11/3/2025 17:44\n2 11/3/2025 5:49\n2 11/3/2025 12:37`}
             className="font-mono text-xs"
           />
-          <div className="flex gap-2">
-            <Button onClick={() => importLogs("append")}>Append</Button>
-            <Button variant="outline" onClick={() => importLogs("replace")}>
+          <div className="flex flex-wrap gap-2">
+            <Button className="flex-1 sm:flex-none min-w-[110px]" onClick={() => importLogs("append")}>Append</Button>
+            <Button className="flex-1 sm:flex-none min-w-[110px]" variant="outline" onClick={() => importLogs("replace")}>
               Replace all
             </Button>
             <Button
+              className="flex-1 sm:flex-none min-w-[140px]"
               variant="secondary"
               onClick={() => {
                 // Combine into normalized "EmpNo Date Time" per line.
@@ -573,6 +574,7 @@ function LogsPanel() {
               Combine columns
             </Button>
             <Button
+              className="flex-1 sm:flex-none"
               variant="ghost"
               onClick={() => {
                 store.clearLogs();
@@ -765,11 +767,12 @@ function DtrPanel({
 
         {emp && (
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => window.print()}>
+            <Button className="w-full sm:w-auto" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
-              Print (3 per page, landscape A4)
+              <span className="sm:inline">Print (3 per page, landscape A4)</span>
             </Button>
             <Button
+              className="w-full sm:w-auto"
               variant="secondary"
               onClick={async () => {
                 const node = document.getElementById("dtr-pdf-source");
@@ -807,6 +810,7 @@ function DtrPanel({
               Download PDF
             </Button>
             <Button
+              className="w-full sm:w-auto"
               variant="outline"
               onClick={() => {
                 store.clearOverrides(emp.empNo);
@@ -819,7 +823,8 @@ function DtrPanel({
         )}
 
         {emp ? (
-          <div className="border rounded-md p-4 overflow-auto bg-white print:hidden">
+          <div className="border rounded-md p-2 sm:p-4 overflow-auto bg-white print:hidden dtr-preview-wrap">
+            <div className="dtr-preview-scale">
             <div id="dtr-pdf-source" className="dtr-page" style={{ width: "297mm" }}>
               <DtrSheet
                 employee={emp}
@@ -846,6 +851,7 @@ function DtrPanel({
                 records={records}
                 verifiedBy={store.state.verifiedBy}
               />
+            </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               Preview shows the print layout (3 copies per page, with dashed
