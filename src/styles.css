@@ -320,6 +320,35 @@
   font-style: italic;
 }
 
+/* Preview wrapper: on small screens, scale the fixed 297mm A4 layout down
+   to fit the viewport so users can read it on mobile without horizontal
+   scrolling. Print/PDF paths are unaffected. */
+.dtr-preview-scale {
+  width: 297mm;
+  transform-origin: top left;
+}
+.dtr-preview-scale > .dtr-page {
+  width: 297mm;
+}
+@media (max-width: 1180px) {
+  .dtr-preview-wrap { overflow: hidden; }
+  .dtr-preview-scale {
+    transform: scale(var(--dtr-scale, 1));
+    height: calc(210mm * var(--dtr-scale, 1));
+  }
+}
+@media (max-width: 1180px) { .dtr-preview-scale { --dtr-scale: 0.85; } }
+@media (max-width: 1024px) { .dtr-preview-scale { --dtr-scale: 0.72; } }
+@media (max-width: 820px)  { .dtr-preview-scale { --dtr-scale: 0.58; } }
+@media (max-width: 640px)  { .dtr-preview-scale { --dtr-scale: 0.40; } }
+@media (max-width: 480px)  { .dtr-preview-scale { --dtr-scale: 0.30; } }
+@media (max-width: 380px)  { .dtr-preview-scale { --dtr-scale: 0.26; } }
+
+@media print {
+  .dtr-preview-scale { transform: none !important; height: auto !important; width: auto !important; }
+  .dtr-preview-wrap { overflow: visible !important; }
+}
+
 /* Aggressively hide the Lovable "Edit with Lovable" badge in the preview */
 #lovable-badge,
 [id^="lovable-badge"],
