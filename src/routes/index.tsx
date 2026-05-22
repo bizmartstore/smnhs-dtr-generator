@@ -543,6 +543,7 @@ function LogsPanel() {
               Replace all
             </Button>
             <Button
+              className="flex-1 sm:flex-none min-w-[140px]"
               variant="secondary"
               onClick={() => {
                 // Combine into normalized "EmpNo Date Time" per line.
