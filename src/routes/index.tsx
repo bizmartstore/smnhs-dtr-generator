@@ -66,21 +66,21 @@ function Index() {
     <div className="min-h-screen bg-background text-foreground">
       <Toaster />
       <header className="border-b no-print">
-        <div className="container mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold">DTR Generator</h1>
-          <p className="text-sm text-muted-foreground">
-            Civil Service Form No. 48 · Build DTRs from raw biometric logs · Print
-            3 per A4 landscape page
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6">
+          <h1 className="text-lg sm:text-2xl font-bold">DTR Generator</h1>
+          <p className="text-[11px] sm:text-sm text-muted-foreground leading-snug">
+            Civil Service Form No. 48 · Build DTRs from raw biometric logs ·
+            Print 3 per A4 landscape page
           </p>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <main className="container mx-auto px-3 sm:px-4 py-3 sm:py-6 space-y-4 sm:space-y-6">
         <Tabs defaultValue="employees" className="no-print">
-          <TabsList>
-            <TabsTrigger value="employees">Employees</TabsTrigger>
-            <TabsTrigger value="logs">Raw Logs</TabsTrigger>
-            <TabsTrigger value="dtr">Generate DTR</TabsTrigger>
+          <TabsList className="w-full grid grid-cols-3 h-auto">
+            <TabsTrigger value="employees" className="text-xs sm:text-sm py-2">Employees</TabsTrigger>
+            <TabsTrigger value="logs" className="text-xs sm:text-sm py-2">Raw Logs</TabsTrigger>
+            <TabsTrigger value="dtr" className="text-xs sm:text-sm py-2">Generate DTR</TabsTrigger>
           </TabsList>
 
           <TabsContent value="employees" className="mt-4">
