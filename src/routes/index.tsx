@@ -574,6 +574,7 @@ function LogsPanel() {
               Combine columns
             </Button>
             <Button
+              className="flex-1 sm:flex-none"
               variant="ghost"
               onClick={() => {
                 store.clearLogs();
