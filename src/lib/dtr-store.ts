@@ -78,18 +78,42 @@ function ovKey(empNo: string, day: string) {
 }
 
 // ---------- bootstrap ----------
+async function fetchAllLogs(): Promise<LogRow[]> {
+  const pageSize = 1000;
+  let from = 0;
+  const all: LogRow[] = [];
+  // Paginate past PostgREST's default 1000-row cap.
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data, error } = await supabase
+      .from("dtr_logs")
+      .select("*")
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) {
+      console.error("[fetchAllLogs]", error);
+      break;
+    }
+    const rows = (data ?? []) as LogRow[];
+    all.push(...rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
 async function bootstrap() {
   if (bootstrapped) return;
   bootstrapped = true;
   try {
-    const [emps, logs, ovs, settings] = await Promise.all([
+    const [emps, allLogs, ovs, settings] = await Promise.all([
       supabase.from("dtr_employees").select("*").order("emp_no"),
-      supabase.from("dtr_logs").select("*"),
+      fetchAllLogs(),
       supabase.from("dtr_overrides").select("*"),
       supabase.from("dtr_settings").select("*").eq("id", 1).maybeSingle(),
     ]);
     const employees = (emps.data ?? []).map((r) => empFromRow(r as EmpRow));
-    const rawLogs = (logs.data ?? []).map((r) => logFromRow(r as LogRow));
+    const rawLogs = allLogs.map((r) => logFromRow(r));
     const overrides: DayOverrides = {};
     for (const r of (ovs.data ?? []) as OvRow[]) {
       overrides[ovKey(r.emp_no, r.day_key)] = {
@@ -126,10 +150,10 @@ async function refreshEmployees() {
   setState({ employees: (data ?? []).map((r) => empFromRow(r as EmpRow)) });
 }
 async function refreshLogs() {
-  const { data } = await supabase.from("dtr_logs").select("*");
+  const data = await fetchAllLogs();
   const seen = new Set<string>();
   const deduped: RawLog[] = [];
-  for (const r of (data ?? []) as LogRow[]) {
+  for (const r of data) {
     const l = logFromRow(r);
     const k = `${l.empNo}|${l.date}|${l.time}`;
     if (seen.has(k)) continue;
