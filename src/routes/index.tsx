@@ -767,11 +767,12 @@ function DtrPanel({
 
         {emp && (
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => window.print()}>
+            <Button className="w-full sm:w-auto" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
-              Print (3 per page, landscape A4)
+              <span className="sm:inline">Print (3 per page, landscape A4)</span>
             </Button>
             <Button
+              className="w-full sm:w-auto"
               variant="secondary"
               onClick={async () => {
                 const node = document.getElementById("dtr-pdf-source");
@@ -809,6 +810,7 @@ function DtrPanel({
               Download PDF
             </Button>
             <Button
+              className="w-full sm:w-auto"
               variant="outline"
               onClick={() => {
                 store.clearOverrides(emp.empNo);
