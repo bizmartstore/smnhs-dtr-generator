@@ -852,6 +852,7 @@ function DtrPanel({
                 verifiedBy={store.state.verifiedBy}
               />
             </div>
+            </div>
             <p className="text-xs text-muted-foreground mt-2">
               Preview shows the print layout (3 copies per page, with dashed
               cut-lines). The first copy is editable — click any time cell to
