@@ -150,10 +150,10 @@ async function refreshEmployees() {
   setState({ employees: (data ?? []).map((r) => empFromRow(r as EmpRow)) });
 }
 async function refreshLogs() {
-  const { data } = await supabase.from("dtr_logs").select("*");
+  const data = await fetchAllLogs();
   const seen = new Set<string>();
   const deduped: RawLog[] = [];
-  for (const r of (data ?? []) as LogRow[]) {
+  for (const r of data) {
     const l = logFromRow(r);
     const k = `${l.empNo}|${l.date}|${l.time}`;
     if (seen.has(k)) continue;
