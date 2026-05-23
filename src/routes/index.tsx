@@ -650,18 +650,20 @@ function LogsPanel() {
           {Object.keys(summary).length === 0 ? (
             <div className="text-sm text-muted-foreground">No logs yet.</div>
           ) : (
-            <ul className="text-sm space-y-1">
-              {Object.entries(summary).map(([emp, n]) => {
-                const e = store.state.employees.find((x) => x.empNo === emp);
-                return (
-                  <li key={emp}>
-                    <span className="font-medium">#{emp}</span>{" "}
-                    {e ? `— ${e.name}` : <em className="text-muted-foreground">(unknown)</em>}{" "}
-                    <span className="text-muted-foreground">· {n} entries</span>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="max-h-[400px] overflow-auto">
+              <ul className="text-sm space-y-1">
+                {Object.entries(summary).map(([emp, n]) => {
+                  const e = store.state.employees.find((x) => x.empNo === emp);
+                  return (
+                    <li key={emp}>
+                      <span className="font-medium">#{emp}</span>{" "}
+                      {e ? `— ${e.name}` : <em className="text-muted-foreground">(unknown)</em>}{" "}
+                      <span className="text-muted-foreground">· {n} entries</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </CardContent>
       </Card>
