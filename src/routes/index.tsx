@@ -72,6 +72,9 @@ function Index() {
             Civil Service Form No. 48 · Build DTRs from raw biometric logs ·
             Print 3 per A4 landscape page
           </p>
+          <div className="mt-3">
+            <BiometricBar onSwitch={() => setSelectedEmp("")} />
+          </div>
         </div>
       </header>
 
