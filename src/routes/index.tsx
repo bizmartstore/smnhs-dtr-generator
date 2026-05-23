@@ -204,6 +204,8 @@ function BatchEmployeesPanel() {
 
 function EmployeesPanel() {
   const store = useDtrStore();
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"empNo" | "name" | "amArr" | "pmDep">("empNo");
   const [draft, setDraft] = useState<Employee>({
     empNo: "",
     name: "",
@@ -212,6 +214,32 @@ function EmployeesPanel() {
     officialPmArrival: "",
     officialPmDeparture: "17:30",
   });
+
+  const filtered = useMemo(() => {
+    let list = store.state.employees;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((e) => e.name.toLowerCase().includes(q));
+    }
+    return [...list].sort((a, b) => {
+      switch (sortBy) {
+        case "empNo":
+          return a.empNo.localeCompare(b.empNo, undefined, { numeric: true });
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "amArr":
+          return (a.officialAmArrival || "99:99").localeCompare(
+            b.officialAmArrival || "99:99"
+          );
+        case "pmDep":
+          return (a.officialPmDeparture || "99:99").localeCompare(
+            b.officialPmDeparture || "99:99"
+          );
+        default:
+          return 0;
+      }
+    });
+  }, [store.state.employees, search, sortBy]);
 
   const submit = () => {
     if (!draft.empNo.trim() || !draft.name.trim()) {
