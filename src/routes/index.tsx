@@ -117,6 +117,127 @@ function Index() {
   );
 }
 
+function BiometricBar({ onSwitch }: { onSwitch: () => void }) {
+  const store = useDtrStore();
+  const [open, setOpen] = useState(false);
+  const [newId, setNewId] = useState("");
+  const [newName, setNewName] = useState("");
+
+  const active = store.state.biometrics.find((b) => b.id === store.state.activeBiometric);
+  const empCount = store.state.employees.length;
+  const logCount = store.state.logs.length;
+
+  const add = async () => {
+    const id = newId.trim();
+    if (!id) {
+      toast.error("Biometric ID required");
+      return;
+    }
+    try {
+      const name = newName.trim() || `Biometrics ${id}`;
+      await store.addBiometric(id, name);
+      await store.setActiveBiometric(id);
+      onSwitch();
+      toast.success(`Added ${name}`);
+      setNewId("");
+      setNewName("");
+      setOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add");
+    }
+  };
+
+  const remove = async () => {
+    if (!active) return;
+    if (store.state.biometrics.length <= 1) {
+      toast.error("At least one biometric is required");
+      return;
+    }
+    if (!confirm(`Delete ${active.name}? Its employees and stored logs will be removed.`)) return;
+    try {
+      await store.removeBiometric(active.id);
+      onSwitch();
+      toast.success("Biometric removed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove");
+    }
+  };
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Fingerprint className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className="text-xs sm:text-sm font-medium">Biometric:</span>
+        <Select
+          value={store.state.activeBiometric}
+          onValueChange={async (v) => {
+            await store.setActiveBiometric(v);
+            onSwitch();
+          }}
+        >
+          <SelectTrigger className="w-[180px] h-8 text-xs sm:text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {store.state.biometrics.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="sm" variant="outline" className="h-8" onClick={() => setOpen(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Add
+        </Button>
+        {store.state.biometrics.length > 1 && (
+          <Button size="sm" variant="ghost" className="h-8 text-destructive" onClick={remove}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <span className="text-[11px] text-muted-foreground ml-auto">
+          {empCount} employees · {logCount} logs (local)
+        </span>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add biometric device</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Biometric ID</Label>
+              <Input
+                value={newId}
+                onChange={(e) => setNewId(e.target.value)}
+                placeholder="e.g. 2"
+              />
+            </div>
+            <div>
+              <Label>Display name</Label>
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Biometrics 2"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Each biometric keeps its own employees and raw logs. Raw logs are
+              stored on this device (IndexedDB) so there's no row limit.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={add}>Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+
+
 function BatchEmployeesPanel() {
   const store = useDtrStore();
   const [text, setText] = useState("");
