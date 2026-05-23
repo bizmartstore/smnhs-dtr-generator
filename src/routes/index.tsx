@@ -357,39 +357,65 @@ function EmployeesPanel() {
             />
           </div>
 
-          <div className="border rounded-md divide-y">
-            {store.state.employees.length === 0 && (
-              <div className="p-4 text-sm text-muted-foreground">
-                No employees yet.
-              </div>
-            )}
-            {store.state.employees.map((e) => (
-              <div
-                key={e.empNo}
-                className="p-3 flex items-center justify-between text-sm gap-2"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium truncate">
-                    #{e.empNo} — {e.name}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+              <SelectTrigger className="w-[140px]">
+                <ArrowUpDown className="h-4 w-4 mr-1 shrink-0" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="empNo">Emp No.</SelectItem>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="amArr">AM Arrival</SelectItem>
+                <SelectItem value="pmDep">PM Departure</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="border rounded-md overflow-hidden">
+            <div className="max-h-[320px] overflow-auto">
+              {filtered.length === 0 && (
+                <div className="p-4 text-sm text-muted-foreground">
+                  {store.state.employees.length === 0 ? "No employees yet." : "No matches found."}
+                </div>
+              )}
+              {filtered.map((e) => (
+                <div
+                  key={e.empNo}
+                  className="p-3 flex items-center justify-between text-sm gap-2 border-b last:border-b-0"
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">
+                      #{e.empNo} — {e.name}
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      {e.officialAmArrival || "—"} / {e.officialAmDeparture || "—"}
+                      {" · "}
+                      {e.officialPmArrival || "—"} / {e.officialPmDeparture || "—"}
+                    </div>
                   </div>
-                  <div className="text-muted-foreground text-xs">
-                    {e.officialAmArrival || "—"} / {e.officialAmDeparture || "—"}
-                    {" · "}
-                    {e.officialPmArrival || "—"} / {e.officialPmDeparture || "—"}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <EditEmployeeButton employee={e} />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => store.removeEmployee(e.empNo)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <EditEmployeeButton employee={e} />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => store.removeEmployee(e.empNo)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
