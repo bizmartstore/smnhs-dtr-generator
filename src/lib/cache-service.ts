@@ -8,6 +8,10 @@ export type CachedSnapshot = {
   logs: RawLog[];
   overrides: DayOverrides;
   cachedAt: number;
+  /** Highest dtr_logs.id included in `logs` (for incremental fetch). */
+  maxLogId?: number;
+  /** Last seen dtr_sync_counters.logs_rev for this biometric. */
+  logsRev?: number;
 };
 
 const key = (biometricId: string) => `dtr:snapshot:${biometricId}`;

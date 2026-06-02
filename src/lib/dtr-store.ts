@@ -4,7 +4,7 @@
 // Architecture:
 //   - Supabase = source of truth (scoped per biometric_id)
 //   - IndexedDB (via cache-service) = warm cache for instant first paint
-//   - Realtime subscription refreshes when other clients change current biometric
+//   - dtr_sync_counters realtime (1 event per bulk import) + incremental log fetch
 import { useEffect, useState } from "react";
 import type { Employee, RawLog, DayRecord, DayOverrides } from "./dtr";
 import { supabase } from "./supabase";
@@ -53,6 +53,7 @@ const listeners = new Set<() => void>();
 let state: Store = DEFAULT;
 let bootstrapped = false;
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+let syncSchemaReady = false;
 
 function notify() {
   listeners.forEach((l) => l());
@@ -80,7 +81,7 @@ async function bootstrap() {
     if (!schemaReady) {
       setState({
         schemaError:
-          "Database setup incomplete. In the Supabase SQL Editor, run SUPABASE_MIGRATION_BIOMETRICS.sql (in this project), then refresh this page.",
+          "Database setup incomplete. In the Supabase SQL Editor, run SUPABASE_MIGRATION_BIOMETRICS.sql and SUPABASE_MIGRATION_SYNC.sql (in this project), then refresh this page.",
         ready: true,
       });
       return;
@@ -110,6 +111,8 @@ async function bootstrap() {
 
     setState({ biometrics: list, currentBiometricId: current, verifiedBy });
 
+    syncSchemaReady = await P.isSyncSchemaReady();
+
     // Warm-paint from cache (if any) then refresh from Supabase.
     const cached = await attendanceRepository.readCached(current);
     if (cached) {
@@ -123,6 +126,7 @@ async function bootstrap() {
     setState({ ready: true });
 
     subscribeRealtime();
+    subscribeVisibilitySync();
   } catch (err) {
     console.error("[dtr-store] bootstrap failed", err);
     setState({ ready: true });
@@ -166,10 +170,22 @@ function subscribeRealtime() {
         void refreshCurrentEmployees();
       }
     })
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "dtr_sync_counters" },
+      (payload) => {
+        const rec = (payload.new ?? payload.old) as { biometric_id?: string } | undefined;
+        if (rec?.biometric_id === state.currentBiometricId) {
+          void syncCurrentLogsIncremental();
+        }
+      },
+    )
+    // Legacy path if sync migration not applied yet (debounced incremental, not full refetch).
     .on("postgres_changes", { event: "*", schema: "public", table: "dtr_logs" }, (payload) => {
+      if (syncSchemaReady) return;
       const rec = (payload.new ?? payload.old) as { biometric_id?: string } | undefined;
-      if (!rec || rec.biometric_id === state.currentBiometricId) {
-        void refreshCurrentLogs();
+      if (rec?.biometric_id === state.currentBiometricId) {
+        void syncCurrentLogsIncremental();
       }
     })
     .on("postgres_changes", { event: "*", schema: "public", table: "dtr_overrides" }, (payload) => {
@@ -196,26 +212,41 @@ async function refreshCurrentEmployees() {
     const employees = await P.fetchEmployees(id);
     if (state.currentBiometricId !== id) return;
     setState({ employees });
+    const cached = await cacheService.readSnapshot(id);
     await cacheService.writeSnapshot(id, {
       employees,
       logs: state.logs,
       overrides: state.overrides,
+      maxLogId: cached?.maxLogId,
+      logsRev: cached?.logsRev,
     });
   }, 250);
 }
-async function refreshCurrentLogs() {
+async function syncCurrentLogsIncremental() {
   if (logTimer) clearTimeout(logTimer);
   logTimer = setTimeout(async () => {
     const id = state.currentBiometricId;
-    const logs = await P.fetchLogs(id);
+    const cached = await cacheService.readSnapshot(id);
+    const { logs, maxLogId, logsRev } = await attendanceRepository.syncLogsOnly(id, cached);
     if (state.currentBiometricId !== id) return;
     setState({ logs });
     await cacheService.writeSnapshot(id, {
       employees: state.employees,
       logs,
       overrides: state.overrides,
+      maxLogId,
+      logsRev,
     });
-  }, 400);
+  }, 500);
+}
+
+function subscribeVisibilitySync() {
+  if (typeof document === "undefined") return;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && state.ready && !state.schemaError) {
+      void syncCurrentLogsIncremental();
+    }
+  });
 }
 async function refreshCurrentOverrides() {
   if (ovTimer) clearTimeout(ovTimer);
@@ -224,10 +255,13 @@ async function refreshCurrentOverrides() {
     const overrides = await P.fetchOverrides(id);
     if (state.currentBiometricId !== id) return;
     setState({ overrides });
+    const cached = await cacheService.readSnapshot(id);
     await cacheService.writeSnapshot(id, {
       employees: state.employees,
       logs: state.logs,
       overrides,
+      maxLogId: cached?.maxLogId,
+      logsRev: cached?.logsRev,
     });
   }, 250);
 }
@@ -379,8 +413,8 @@ export function useDtrStore() {
 
       setState({ importProgress: null });
 
-      // Hard-resync from DB so realtime can't overwrite us with stale data.
-      await refreshCurrentLogs();
+      // Merge any rows we missed ids for (incremental; no full-table refetch).
+      await syncCurrentLogsIncremental();
       return {
         inserted: result.inserted,
         skipped,
@@ -391,6 +425,14 @@ export function useDtrStore() {
       setState({ logs: [] });
       try {
         await P.clearLogsFor(biometricId);
+        const logsRev = await P.fetchLogsRev(biometricId);
+        await cacheService.writeSnapshot(biometricId, {
+          employees: state.employees,
+          logs: [],
+          overrides: state.overrides,
+          maxLogId: 0,
+          logsRev,
+        });
       } catch (e) {
         console.error("[clearLogs]", e);
       }

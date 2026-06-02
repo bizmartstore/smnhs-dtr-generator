@@ -70,6 +70,79 @@ export async function isBiometricsSchemaReady(): Promise<boolean> {
   return !colErr;
 }
 
+/** Sync-counter table (run SUPABASE_MIGRATION_SYNC.sql). */
+export async function isSyncSchemaReady(): Promise<boolean> {
+  const { error } = await supabase.from("dtr_sync_counters").select("biometric_id").limit(1);
+  return !error;
+}
+
+export async function fetchLogsRev(biometricId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("dtr_sync_counters")
+    .select("logs_rev")
+    .eq("biometric_id", biometricId)
+    .maybeSingle();
+  if (error) {
+    console.error("[fetchLogsRev]", error);
+    return 0;
+  }
+  return Number((data as { logs_rev?: number } | null)?.logs_rev ?? 0);
+}
+
+export async function fetchLogCount(biometricId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("dtr_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("biometric_id", biometricId);
+  if (error) {
+    console.error("[fetchLogCount]", error);
+    return -1;
+  }
+  return count ?? 0;
+}
+
+export async function fetchMaxLogId(biometricId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("dtr_logs")
+    .select("id")
+    .eq("biometric_id", biometricId)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("[fetchMaxLogId]", error);
+    return 0;
+  }
+  return Number((data as { id?: number } | null)?.id ?? 0);
+}
+
+export type LogsDelta = { logs: RawLog[]; maxId: number };
+
+/** Fetches only rows with id greater than `afterId` (minimal egress). */
+export async function fetchLogsAfter(biometricId: string, afterId: number): Promise<LogsDelta> {
+  const rows = await paginate<LogRow>((from, to) =>
+    supabase
+      .from("dtr_logs")
+      .select("id,emp_no,log_date,log_time")
+      .eq("biometric_id", biometricId)
+      .gt("id", afterId)
+      .order("id", { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: LogRow[] | null; error: unknown }>,
+  );
+  let maxId = afterId;
+  const logs: RawLog[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (r.id != null && r.id > maxId) maxId = r.id;
+    const l = logFromRow(r);
+    const k = `${l.empNo}|${l.date}|${l.time}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    logs.push(l);
+  }
+  return { logs, maxId };
+}
+
 // ---- Biometrics ----
 export async function fetchBiometrics(): Promise<BiometricRow[]> {
   const { data, error } = await supabase
@@ -85,6 +158,17 @@ export async function fetchBiometrics(): Promise<BiometricRow[]> {
 export async function upsertBiometric(row: BiometricRow) {
   const { error } = await supabase.from("dtr_biometrics").upsert(row);
   if (error) throw error;
+  await ensureSyncCounter(row.id);
+}
+
+export async function ensureSyncCounter(biometricId: string) {
+  const { error } = await supabase.from("dtr_sync_counters").upsert(
+    { biometric_id: biometricId, logs_rev: 0 },
+    { onConflict: "biometric_id", ignoreDuplicates: true },
+  );
+  if (error && !error.message.includes("does not exist")) {
+    console.warn("[ensureSyncCounter]", error);
+  }
 }
 export async function deleteBiometricCascade(id: string) {
   // Hard-delete a biometric and ALL its scoped data.
@@ -132,7 +216,7 @@ export async function fetchLogs(biometricId: string): Promise<RawLog[]> {
   const rows = await paginate<LogRow>((from, to) =>
     supabase
       .from("dtr_logs")
-      .select("*")
+      .select("id,emp_no,log_date,log_time")
       .eq("biometric_id", biometricId)
       .order("id", { ascending: true })
       .range(from, to) as unknown as PromiseLike<{ data: LogRow[] | null; error: unknown }>,
