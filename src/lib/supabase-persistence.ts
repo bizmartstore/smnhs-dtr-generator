@@ -86,7 +86,7 @@ export async function deleteBiometricCascade(id: string) {
 
 // ---- Paginated reads (PostgREST 1000-row cap) ----
 async function paginate<T>(
-  build: (from: number, to: number) => Promise<{ data: T[] | null; error: unknown }>,
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
   pageSize = 1000,
 ): Promise<T[]> {
   const out: T[] = [];
@@ -112,7 +112,7 @@ export async function fetchEmployees(biometricId: string): Promise<Employee[]> {
       .select("*")
       .eq("biometric_id", biometricId)
       .order("emp_no", { ascending: true })
-      .range(from, to),
+      .range(from, to) as unknown as PromiseLike<{ data: EmpRow[] | null; error: unknown }>,
   );
   return rows.map(empFromRow);
 }
@@ -124,7 +124,7 @@ export async function fetchLogs(biometricId: string): Promise<RawLog[]> {
       .select("*")
       .eq("biometric_id", biometricId)
       .order("id", { ascending: true })
-      .range(from, to),
+      .range(from, to) as unknown as PromiseLike<{ data: LogRow[] | null; error: unknown }>,
   );
   // Dedup defensively in case the unique index is absent on older databases.
   const seen = new Set<string>();
@@ -145,8 +145,9 @@ export async function fetchOverrides(biometricId: string): Promise<DayOverrides>
       .from("dtr_overrides")
       .select("*")
       .eq("biometric_id", biometricId)
-      .range(from, to),
+      .range(from, to) as unknown as PromiseLike<{ data: OvRow[] | null; error: unknown }>,
   );
+
   const out: DayOverrides = {};
   for (const r of rows) {
     out[ovKey(r.emp_no, r.day_key)] = {
@@ -179,14 +180,20 @@ export async function renameEmployeeEverywhere(
   oldEmpNo: string,
   newEmpNo: string,
 ) {
-  const t = { emp_no: newEmpNo };
-  const eq = (q: ReturnType<typeof supabase.from>) =>
-    q.eq("biometric_id", biometricId).eq("emp_no", oldEmpNo);
-  const r1 = await eq(supabase.from("dtr_logs").update(t));
+  const r1 = await supabase
+    .from("dtr_logs")
+    .update({ emp_no: newEmpNo })
+    .eq("biometric_id", biometricId)
+    .eq("emp_no", oldEmpNo);
   if (r1.error) throw r1.error;
-  const r2 = await eq(supabase.from("dtr_overrides").update(t));
+  const r2 = await supabase
+    .from("dtr_overrides")
+    .update({ emp_no: newEmpNo })
+    .eq("biometric_id", biometricId)
+    .eq("emp_no", oldEmpNo);
   if (r2.error) throw r2.error;
 }
+
 
 export async function setOverrideRow(
   biometricId: string,
