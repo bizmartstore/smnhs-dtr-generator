@@ -326,13 +326,13 @@ function toMin(t?: string): number | null {
 export function formatOfficialHours(emp: Employee): string {
   const shift = getShiftType(emp);
   if (shift === "am" && emp.officialAmArrival && emp.officialAmDeparture) {
-    return `${fmt12(emp.officialAmArrival)}-${fmt12(emp.officialAmDeparture)} (AM)`;
+    return `${fmt12(emp.officialAmArrival)}-${fmt12(emp.officialAmDeparture)}`;
   }
   if (shift === "pm" && emp.officialPmArrival && emp.officialPmDeparture) {
-    return `${fmt12(emp.officialPmArrival)}-${fmt12(emp.officialPmDeparture)} (PM)`;
+    return `${fmt12(emp.officialPmArrival)}-${fmt12(emp.officialPmDeparture)}`;
   }
   if (shift === "hybrid" && emp.officialAmArrival && emp.officialPmDeparture) {
-    return `${fmt12(emp.officialAmArrival)}-${fmt12(emp.officialPmDeparture)} (Hybrid)`;
+    return `${fmt12(emp.officialAmArrival)}-${fmt12(emp.officialPmDeparture)}`;
   }
   const am =
     emp.officialAmArrival && emp.officialAmDeparture
