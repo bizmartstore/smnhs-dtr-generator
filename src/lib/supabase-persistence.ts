@@ -59,6 +59,17 @@ export function ovKey(empNo: string, day: string) {
   return `${empNo}|${day}`;
 }
 
+/** Returns false when the biometrics migration has not been applied yet. */
+export async function isBiometricsSchemaReady(): Promise<boolean> {
+  const { error } = await supabase.from("dtr_biometrics").select("id").limit(1);
+  if (error) return false;
+  const { error: colErr } = await supabase
+    .from("dtr_employees")
+    .select("biometric_id")
+    .limit(1);
+  return !colErr;
+}
+
 // ---- Biometrics ----
 export async function fetchBiometrics(): Promise<BiometricRow[]> {
   const { data, error } = await supabase

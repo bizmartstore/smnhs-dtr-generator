@@ -28,6 +28,8 @@ type Store = {
   // Global
   verifiedBy: string;
   ready: boolean;
+  /** Set when Supabase is missing the biometrics migration tables/columns. */
+  schemaError: string | null;
 
   // Import UX
   importProgress: ImportProgress | null;
@@ -43,6 +45,7 @@ const DEFAULT: Store = {
   overrides: {},
   verifiedBy: "",
   ready: false,
+  schemaError: null,
   importProgress: null,
 };
 
@@ -73,6 +76,16 @@ async function bootstrap() {
   bootstrapped = true;
 
   try {
+    const schemaReady = await P.isBiometricsSchemaReady();
+    if (!schemaReady) {
+      setState({
+        schemaError:
+          "Database setup incomplete. In the Supabase SQL Editor, run SUPABASE_MIGRATION_BIOMETRICS.sql (in this project), then refresh this page.",
+        ready: true,
+      });
+      return;
+    }
+
     // Catalog + global settings
     const [biometrics, verifiedBy] = await Promise.all([
       P.fetchBiometrics(),

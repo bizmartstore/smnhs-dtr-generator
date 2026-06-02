@@ -39,51 +39,36 @@ alter table public.dtr_overrides
 -- 3) Re-key dtr_employees (PK: biometric_id + emp_no) ---------------------
 do $$
 begin
-  if exists (
-    select 1 from pg_constraint
-    where conrelid = 'public.dtr_employees'::regclass
-      and contype = 'p'
-      and conname = 'dtr_employees_pkey'
+  if not exists (
+    select 1
+    from pg_constraint c
+    join pg_attribute a
+      on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+    where c.conrelid = 'public.dtr_employees'::regclass
+      and c.contype = 'p'
+      and a.attname = 'biometric_id'
   ) then
-    -- Only drop if it isn't already the composite key we want.
-    if (
-      select array_agg(attname order by attnum)
-      from pg_attribute
-      where attrelid = 'public.dtr_employees'::regclass
-        and attnum = any((
-          select conkey from pg_constraint
-          where conrelid = 'public.dtr_employees'::regclass and contype='p'
-        ))
-    ) <> array['biometric_id','emp_no']::name[] then
-      alter table public.dtr_employees drop constraint dtr_employees_pkey;
-      alter table public.dtr_employees
-        add constraint dtr_employees_pkey primary key (biometric_id, emp_no);
-    end if;
+    alter table public.dtr_employees drop constraint if exists dtr_employees_pkey;
+    alter table public.dtr_employees
+      add constraint dtr_employees_pkey primary key (biometric_id, emp_no);
   end if;
 end $$;
 
 -- 4) Re-key dtr_overrides (PK: biometric_id + emp_no + day_key) -----------
 do $$
 begin
-  if exists (
-    select 1 from pg_constraint
-    where conrelid = 'public.dtr_overrides'::regclass
-      and contype = 'p'
-      and conname = 'dtr_overrides_pkey'
+  if not exists (
+    select 1
+    from pg_constraint c
+    join pg_attribute a
+      on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
+    where c.conrelid = 'public.dtr_overrides'::regclass
+      and c.contype = 'p'
+      and a.attname = 'biometric_id'
   ) then
-    if (
-      select array_agg(attname order by attnum)
-      from pg_attribute
-      where attrelid = 'public.dtr_overrides'::regclass
-        and attnum = any((
-          select conkey from pg_constraint
-          where conrelid = 'public.dtr_overrides'::regclass and contype='p'
-        ))
-    ) <> array['biometric_id','emp_no','day_key']::name[] then
-      alter table public.dtr_overrides drop constraint dtr_overrides_pkey;
-      alter table public.dtr_overrides
-        add constraint dtr_overrides_pkey primary key (biometric_id, emp_no, day_key);
-    end if;
+    alter table public.dtr_overrides drop constraint if exists dtr_overrides_pkey;
+    alter table public.dtr_overrides
+      add constraint dtr_overrides_pkey primary key (biometric_id, emp_no, day_key);
   end if;
 end $$;
 

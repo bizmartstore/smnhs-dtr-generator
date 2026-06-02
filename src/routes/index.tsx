@@ -44,6 +44,7 @@ import { DtrSheet } from "@/components/dtr/DtrSheet";
 import { BiometricSwitcher } from "@/components/dtr/BiometricSwitcher";
 import { EmployeePicker } from "@/components/dtr/EmployeePicker";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -60,6 +61,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const { state } = useDtrStore();
   const now = new Date();
   const [year, setYear] = useState<number>(now.getFullYear());
   const [monthIndex0, setMonthIndex0] = useState<number>(now.getMonth());
@@ -68,6 +70,12 @@ function Index() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Toaster />
+      {state.schemaError ? (
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0 no-print">
+          <AlertTitle>Database setup required</AlertTitle>
+          <AlertDescription>{state.schemaError}</AlertDescription>
+        </Alert>
+      ) : null}
       <header className="border-b no-print">
         <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
