@@ -7,6 +7,25 @@ export type Employee = {
   officialPmDeparture?: string;
 };
 
+/** How official times map onto the DTR AM/PM columns. */
+export type ShiftType = "am" | "hybrid" | "pm" | "full" | "custom";
+
+export function getShiftType(emp: Employee): ShiftType {
+  const hasAmA = !!emp.officialAmArrival?.trim();
+  const hasAmD = !!emp.officialAmDeparture?.trim();
+  const hasPmA = !!emp.officialPmArrival?.trim();
+  const hasPmD = !!emp.officialPmDeparture?.trim();
+
+  if (hasAmA && hasAmD && !hasPmA && !hasPmD) return "am";
+  if (hasAmA && hasPmD && !hasAmD && !hasPmA) return "hybrid";
+  if (hasPmA && hasPmD && !hasAmA && !hasAmD) return "pm";
+  if (hasAmA && hasAmD && hasPmA && hasPmD) return "full";
+  if (hasAmA && hasPmD) return "hybrid";
+  if (hasPmA && hasPmD) return "pm";
+  if (hasAmA && hasAmD) return "am";
+  return "custom";
+}
+
 export type RawLog = {
   empNo: string;
   date: string; // YYYY-MM-DD
@@ -116,20 +135,23 @@ function normalizeTimeParts(hStr: string, mStr: string, ampm?: string): string |
   return `${pad(h)}:${pad(min)}`;
 }
 
-// Pair logs for one employee on one day into AM/PM arrival/departure.
-// Strategy:
-//   - Sort the day's times ascending.
-//   - Split AM (< 12:00) vs PM (>= 12:00).
-//   - If 4+ entries: AM[0]=arrAm, AM[last]=depAm, PM[0]=arrPm, PM[last]=depPm.
-//   - If only AM has multiple entries: first arrAm, last depAm.
-//   - If only PM has multiple entries: first arrPm, last depPm.
-//   - If exactly 1 AM and 1 PM: arrAm + depPm (typical: morning in, evening out).
-//   - If only 1 entry: place by AM/PM as arrival.
+const emptyDay = (): DayRecord => ({
+  amArrival: "",
+  amDeparture: "",
+  pmArrival: "",
+  pmDeparture: "",
+});
+
+function hourOf(t: string): number {
+  return parseInt(t.slice(0, 2), 10);
+}
+
+/** Full-day pairing (AM + PM blocks with lunch). */
 export function pairDay(times: string[]): DayRecord {
   const sorted = [...times].sort();
-  const am = sorted.filter((t) => parseInt(t.slice(0, 2), 10) < 12);
-  const pm = sorted.filter((t) => parseInt(t.slice(0, 2), 10) >= 12);
-  const rec: DayRecord = { amArrival: "", amDeparture: "", pmArrival: "", pmDeparture: "" };
+  const am = sorted.filter((t) => hourOf(t) < 12);
+  const pm = sorted.filter((t) => hourOf(t) >= 12);
+  const rec = emptyDay();
   if (am.length >= 2) {
     rec.amArrival = am[0];
     rec.amDeparture = am[am.length - 1];
@@ -140,7 +162,6 @@ export function pairDay(times: string[]): DayRecord {
     rec.pmArrival = pm[0];
     rec.pmDeparture = pm[pm.length - 1];
   } else if (pm.length === 1) {
-    // If we also have an AM arrival but no AM departure, treat single PM as PM departure
     if (am.length === 1) {
       rec.pmDeparture = pm[0];
     } else {
@@ -150,14 +171,84 @@ export function pairDay(times: string[]): DayRecord {
   return rec;
 }
 
-// Build records for an employee for a given month
+/** Pair one day's punches according to the employee's official shift pattern. */
+export function pairDayForEmployee(times: string[], emp: Employee): DayRecord {
+  const sorted = [...times].sort();
+  const shift = getShiftType(emp);
+
+  if (sorted.length === 0) return emptyDay();
+
+  if (shift === "am") {
+    const rec = emptyDay();
+    rec.amArrival = sorted[0];
+    if (sorted.length >= 2) rec.amDeparture = sorted[sorted.length - 1];
+    return rec;
+  }
+
+  if (shift === "pm") {
+    const rec = emptyDay();
+    rec.pmArrival = sorted[0];
+    if (sorted.length >= 2) rec.pmDeparture = sorted[sorted.length - 1];
+    return rec;
+  }
+
+  if (shift === "hybrid") {
+    const am = sorted.filter((t) => hourOf(t) < 12);
+    const pm = sorted.filter((t) => hourOf(t) >= 12);
+    const rec = emptyDay();
+    if (am.length >= 1) rec.amArrival = am[0];
+    if (pm.length >= 1) rec.pmDeparture = pm[pm.length - 1];
+    if (am.length === 0 && pm.length === 1) {
+      rec.amArrival = pm[0];
+      rec.pmDeparture = "";
+    } else if (pm.length === 0 && am.length === 1) {
+      rec.pmDeparture = am[0];
+      rec.amArrival = "";
+    }
+    return rec;
+  }
+
+  return pairDay(sorted);
+}
+
+/** Hide DTR columns that are not used for this employee's shift. */
+export function maskRecordForShift(rec: DayRecord, emp: Employee): DayRecord {
+  const shift = getShiftType(emp);
+  const out = { ...rec };
+
+  if (shift === "am") {
+    out.pmArrival = "";
+    out.pmDeparture = "";
+    return out;
+  }
+  if (shift === "pm") {
+    out.amArrival = "";
+    out.amDeparture = "";
+    return out;
+  }
+  if (shift === "hybrid") {
+    out.amDeparture = "";
+    out.pmArrival = "";
+    return out;
+  }
+  if (shift === "custom") {
+    if (!emp.officialAmArrival?.trim()) out.amArrival = "";
+    if (!emp.officialAmDeparture?.trim()) out.amDeparture = "";
+    if (!emp.officialPmArrival?.trim()) out.pmArrival = "";
+    if (!emp.officialPmDeparture?.trim()) out.pmDeparture = "";
+  }
+  return out;
+}
+
+// Build records for an employee for a given month (shift-aware columns + masking).
 export function buildMonthRecords(
-  empNo: string,
+  employee: Employee,
   year: number,
   monthIndex0: number,
   logs: RawLog[],
-  overrides: DayOverrides
+  overrides: DayOverrides,
 ): DayRecord[] {
+  const empNo = employee.empNo;
   const total = daysInMonth(year, monthIndex0);
   const byDate: Record<string, string[]> = {};
   for (const l of logs) {
@@ -169,9 +260,9 @@ export function buildMonthRecords(
   const records: DayRecord[] = [];
   for (let d = 1; d <= total; d++) {
     const key = dateKey(year, monthIndex0, d);
-    const base = pairDay(byDate[key] || []);
+    const base = pairDayForEmployee(byDate[key] || [], employee);
     const ov = overrides[`${empNo}|${key}`];
-    records.push({ ...base, ...(ov || {}) });
+    records.push(maskRecordForShift({ ...base, ...(ov || {}) }, employee));
   }
   return records;
 }
@@ -187,36 +278,38 @@ export function fmt12(t: string): string {
   return `${h}:${pad(m)} ${period}`;
 }
 
-// Undertime: difference between actual span worked and official span.
-// Returns { hours, minutes } (>=0). If insufficient data, returns zeros.
+// Undertime / late: per active shift segment (late arrival + early departure).
 export function computeUndertime(rec: DayRecord, emp: Employee): { h: number; m: number } {
-  const offMins = officialTotalMinutes(emp);
-  if (offMins <= 0) return { h: 0, m: 0 };
-  const actMins = actualTotalMinutes(rec);
-  if (actMins <= 0) return { h: 0, m: 0 };
-
-  // Per-segment undertime: late arrival + early departure for each of AM/PM.
+  const masked = maskRecordForShift(rec, emp);
   let diff = 0;
-  const offAmA = toMin(emp.officialAmArrival);
-  const offAmD = toMin(emp.officialAmDeparture);
-  const offPmA = toMin(emp.officialPmArrival);
-  const offPmD = toMin(emp.officialPmDeparture);
-  const aA = toMin(rec.amArrival);
-  const aD = toMin(rec.amDeparture);
-  const pA = toMin(rec.pmArrival);
-  const pD = toMin(rec.pmDeparture);
 
-  if (offAmA != null && aA != null && aA > offAmA) diff += aA - offAmA;
-  if (offAmD != null && aD != null && aD < offAmD) diff += offAmD - aD;
-  if (offPmA != null && pA != null && pA > offPmA) diff += pA - offPmA;
-  if (offPmD != null && pD != null && pD < offPmD) diff += offPmD - pD;
+  const addLate = (official: string | undefined, actual: string) => {
+    const o = toMin(official);
+    const a = toMin(actual);
+    if (o != null && a != null && a > o) diff += a - o;
+  };
+  const addEarly = (official: string | undefined, actual: string) => {
+    const o = toMin(official);
+    const a = toMin(actual);
+    if (o != null && a != null && a < o) diff += o - a;
+  };
 
-  // Fallback: outer bounds only (e.g. official 8:30-17:30 with 1h lunch).
-  if (
-    offAmA == null && offAmD == null && offPmA == null && offPmD == null
-  ) {
-    const totalDiff = offMins - actMins;
-    if (totalDiff > 0) diff = totalDiff;
+  const shift = getShiftType(emp);
+
+  if (shift === "am") {
+    addLate(emp.officialAmArrival, masked.amArrival);
+    addEarly(emp.officialAmDeparture, masked.amDeparture);
+  } else if (shift === "pm") {
+    addLate(emp.officialPmArrival, masked.pmArrival);
+    addEarly(emp.officialPmDeparture, masked.pmDeparture);
+  } else if (shift === "hybrid") {
+    addLate(emp.officialAmArrival, masked.amArrival);
+    addEarly(emp.officialPmDeparture, masked.pmDeparture);
+  } else {
+    addLate(emp.officialAmArrival, masked.amArrival);
+    addEarly(emp.officialAmDeparture, masked.amDeparture);
+    addLate(emp.officialPmArrival, masked.pmArrival);
+    addEarly(emp.officialPmDeparture, masked.pmDeparture);
   }
 
   if (diff <= 0) return { h: 0, m: 0 };
@@ -230,36 +323,17 @@ function toMin(t?: string): number | null {
   return h * 60 + m;
 }
 
-function officialTotalMinutes(emp: Employee): number {
-  const aA = toMin(emp.officialAmArrival);
-  const aD = toMin(emp.officialAmDeparture);
-  const pA = toMin(emp.officialPmArrival);
-  const pD = toMin(emp.officialPmDeparture);
-  let total = 0;
-  if (aA != null && aD != null && aD > aA) total += aD - aA;
-  if (pA != null && pD != null && pD > pA) total += pD - pA;
-  // Fallback: full span minus 1h lunch if only outer bounds given (e.g., 8:30-17:30)
-  if (total === 0 && aA != null && pD != null && pD > aA) {
-    total = pD - aA - 60;
-  }
-  return total;
-}
-
-function actualTotalMinutes(rec: DayRecord): number {
-  const aA = toMin(rec.amArrival);
-  const aD = toMin(rec.amDeparture);
-  const pA = toMin(rec.pmArrival);
-  const pD = toMin(rec.pmDeparture);
-  let total = 0;
-  if (aA != null && aD != null && aD > aA) total += aD - aA;
-  if (pA != null && pD != null && pD > pA) total += pD - pA;
-  if (total === 0 && aA != null && pD != null && pD > aA) {
-    total = pD - aA - 60;
-  }
-  return total;
-}
-
 export function formatOfficialHours(emp: Employee): string {
+  const shift = getShiftType(emp);
+  if (shift === "am" && emp.officialAmArrival && emp.officialAmDeparture) {
+    return `${fmt12(emp.officialAmArrival)}-${fmt12(emp.officialAmDeparture)} (AM)`;
+  }
+  if (shift === "pm" && emp.officialPmArrival && emp.officialPmDeparture) {
+    return `${fmt12(emp.officialPmArrival)}-${fmt12(emp.officialPmDeparture)} (PM)`;
+  }
+  if (shift === "hybrid" && emp.officialAmArrival && emp.officialPmDeparture) {
+    return `${fmt12(emp.officialAmArrival)}-${fmt12(emp.officialPmDeparture)} (Hybrid)`;
+  }
   const am =
     emp.officialAmArrival && emp.officialAmDeparture
       ? `${fmt12(emp.officialAmArrival)}-${fmt12(emp.officialAmDeparture)}`
@@ -271,8 +345,8 @@ export function formatOfficialHours(emp: Employee): string {
   if (am && pm) return `${am} / ${pm}`;
   if (am) return am;
   if (pm) return pm;
-  // Outer bounds fallback
-  if (emp.officialAmArrival && emp.officialPmDeparture)
+  if (emp.officialAmArrival && emp.officialPmDeparture) {
     return `${fmt12(emp.officialAmArrival)}-${fmt12(emp.officialPmDeparture)}`;
+  }
   return "";
 }

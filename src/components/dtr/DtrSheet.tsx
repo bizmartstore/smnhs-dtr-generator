@@ -6,6 +6,8 @@ import {
   dateKey,
   fmt12,
   formatOfficialHours,
+  getShiftType,
+  maskRecordForShift,
 } from "@/lib/dtr";
 
 type Props = {
@@ -30,6 +32,19 @@ export function DtrSheet({
 }: Props) {
   const total = daysInMonth(year, monthIndex0);
   const official = formatOfficialHours(employee);
+  const shift = getShiftType(employee);
+  const showAmArr =
+    shift === "am" || shift === "hybrid" || shift === "full" ||
+    (shift === "custom" && !!employee.officialAmArrival);
+  const showAmDep =
+    shift === "am" || shift === "full" ||
+    (shift === "custom" && !!employee.officialAmDeparture);
+  const showPmArr =
+    shift === "pm" || shift === "full" ||
+    (shift === "custom" && !!employee.officialPmArrival);
+  const showPmDep =
+    shift === "pm" || shift === "hybrid" || shift === "full" ||
+    (shift === "custom" && !!employee.officialPmDeparture);
 
   let totalH = 0;
   let totalM = 0;
@@ -86,7 +101,7 @@ export function DtrSheet({
         <tbody>
           {Array.from({ length: total }).map((_, i) => {
             const day = i + 1;
-            const rec = records[i];
+            const rec = maskRecordForShift(records[i], employee);
             const ut = computeUndertime(rec, employee);
             totalH += ut.h;
             totalM += ut.m;
@@ -95,10 +110,10 @@ export function DtrSheet({
             return (
               <tr key={day}>
                 <td className="dtr-day-col">{day}</td>
-                <Cell value={rec.amArrival} editable={editable} onChange={(v) => onEdit?.(dk, "amArrival", v)} />
-                <Cell value={rec.amDeparture} editable={editable} onChange={(v) => onEdit?.(dk, "amDeparture", v)} />
-                <Cell value={rec.pmArrival} editable={editable} onChange={(v) => onEdit?.(dk, "pmArrival", v)} />
-                <Cell value={rec.pmDeparture} editable={editable} onChange={(v) => onEdit?.(dk, "pmDeparture", v)} />
+                <Cell value={showAmArr ? rec.amArrival : ""} editable={editable && showAmArr} onChange={(v) => onEdit?.(dk, "amArrival", v)} />
+                <Cell value={showAmDep ? rec.amDeparture : ""} editable={editable && showAmDep} onChange={(v) => onEdit?.(dk, "amDeparture", v)} />
+                <Cell value={showPmArr ? rec.pmArrival : ""} editable={editable && showPmArr} onChange={(v) => onEdit?.(dk, "pmArrival", v)} />
+                <Cell value={showPmDep ? rec.pmDeparture : ""} editable={editable && showPmDep} onChange={(v) => onEdit?.(dk, "pmDeparture", v)} />
                 <td className="dtr-ut" colSpan={2}>{utLabel}</td>
               </tr>
             );

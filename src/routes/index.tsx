@@ -287,8 +287,10 @@ function EmployeesPanel() {
         <CardHeader>
           <CardTitle>Add employee</CardTitle>
           <CardDescription>
-            All four official times are optional. Provide at least two (typically
-            AM arrival &amp; PM departure).
+            Set official times for the employee&apos;s shift: <strong>AM</strong> (AM
+            arrival + AM departure), <strong>Hybrid</strong> (AM arrival + PM departure
+            only), or <strong>PM</strong> (PM arrival + PM departure). DTR columns and
+            late/undertime follow this pattern.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -741,11 +743,11 @@ function DtrPanel({
   const records = useMemo<DayRecord[]>(() => {
     if (!emp) return [];
     return buildMonthRecords(
-      emp.empNo,
+      emp,
       year,
       monthIndex0,
       store.state.logs,
-      store.state.overrides
+      store.state.overrides,
     );
   }, [emp, year, monthIndex0, store.state.logs, store.state.overrides]);
 
@@ -974,11 +976,11 @@ function PrintArea({
   const emp = store.state.employees.find((e) => e.empNo === selectedEmp);
   if (!emp) return null;
   const records = buildMonthRecords(
-    emp.empNo,
+    emp,
     year,
     monthIndex0,
     store.state.logs,
-    store.state.overrides
+    store.state.overrides,
   );
   return (
     <div className="hidden print:block">
