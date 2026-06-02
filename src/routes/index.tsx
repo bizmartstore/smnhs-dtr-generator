@@ -41,6 +41,9 @@ import {
   type DayRecord,
 } from "@/lib/dtr";
 import { DtrSheet } from "@/components/dtr/DtrSheet";
+import { BiometricSwitcher } from "@/components/dtr/BiometricSwitcher";
+import { EmployeePicker } from "@/components/dtr/EmployeePicker";
+import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -66,12 +69,15 @@ function Index() {
     <div className="min-h-screen bg-background text-foreground">
       <Toaster />
       <header className="border-b no-print">
-        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6">
-          <h1 className="text-lg sm:text-2xl font-bold">DTR Generator</h1>
-          <p className="text-[11px] sm:text-sm text-muted-foreground leading-snug">
-            Civil Service Form No. 48 · Build DTRs from raw biometric logs ·
-            Print 3 per A4 landscape page
-          </p>
+        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-lg sm:text-2xl font-bold">DTR Generator</h1>
+            <p className="text-[11px] sm:text-sm text-muted-foreground leading-snug">
+              Civil Service Form No. 48 · Build DTRs from raw biometric logs ·
+              Print 3 per A4 landscape page
+            </p>
+          </div>
+          <BiometricSwitcher />
         </div>
       </header>
 
@@ -638,6 +644,30 @@ function LogsPanel() {
               Clear stored logs
             </Button>
           </div>
+          {store.state.importProgress && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>
+                  Importing chunk {store.state.importProgress.chunkIndex}/
+                  {store.state.importProgress.chunkCount}
+                  {store.state.importProgress.failedChunks > 0 &&
+                    ` · ${store.state.importProgress.failedChunks} failed`}
+                </span>
+                <span>
+                  {store.state.importProgress.done}/{store.state.importProgress.total}
+                </span>
+              </div>
+              <Progress
+                value={
+                  store.state.importProgress.total === 0
+                    ? 0
+                    : (store.state.importProgress.done /
+                        store.state.importProgress.total) *
+                      100
+                }
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -770,16 +800,11 @@ function DtrPanel({
           </div>
           <div className="sm:col-span-2">
             <Label>Employee</Label>
-            <Select value={selectedEmp} onValueChange={setSelectedEmp}>
-              <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
-              <SelectContent>
-                {store.state.employees.map((e) => (
-                  <SelectItem key={e.empNo} value={e.empNo}>
-                    #{e.empNo} — {e.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EmployeePicker
+              employees={store.state.employees}
+              value={selectedEmp}
+              onChange={setSelectedEmp}
+            />
           </div>
         </div>
 

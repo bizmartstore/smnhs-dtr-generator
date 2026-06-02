@@ -1,26 +1,55 @@
+// Orchestrator hook. Public API preserved for existing components;
+// internally now delegates to repository + import service + persistence.
+//
+// Architecture:
+//   - Supabase = source of truth (scoped per biometric_id)
+//   - IndexedDB (via cache-service) = warm cache for instant first paint
+//   - Realtime subscription refreshes when other clients change current biometric
 import { useEffect, useState } from "react";
-import type { Employee, RawLog, DayOverrides, DayRecord } from "./dtr";
+import type { Employee, RawLog, DayRecord, DayOverrides } from "./dtr";
 import { supabase } from "./supabase";
+import * as P from "./supabase-persistence";
+import { attendanceRepository } from "./attendance-repository";
+import { cacheService } from "./cache-service";
+import { importLogs as importLogsService, type ImportProgress } from "./import-service";
+
+export type Biometric = { id: string; name: string };
 
 type Store = {
+  // Biometrics catalog + currently-selected workspace
+  biometrics: Biometric[];
+  currentBiometricId: string;
+
+  // Per-biometric data (current selection only)
   employees: Employee[];
   logs: RawLog[];
   overrides: DayOverrides;
+
+  // Global
   verifiedBy: string;
   ready: boolean;
+
+  // Import UX
+  importProgress: ImportProgress | null;
 };
 
+const LS_CURRENT = "dtr:currentBiometricId";
+
 const DEFAULT: Store = {
+  biometrics: [],
+  currentBiometricId: (typeof localStorage !== "undefined" && localStorage.getItem(LS_CURRENT)) || "1",
   employees: [],
   logs: [],
   overrides: {},
   verifiedBy: "",
   ready: false,
+  importProgress: null,
 };
 
 const listeners = new Set<() => void>();
 let state: Store = DEFAULT;
 let bootstrapped = false;
+let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 
 function notify() {
   listeners.forEach((l) => l());
@@ -30,154 +59,164 @@ function setState(patch: Partial<Store>) {
   notify();
 }
 
-// ---------- row <-> model ----------
-type EmpRow = {
-  emp_no: string;
-  name: string;
-  official_am_arrival: string | null;
-  official_am_departure: string | null;
-  official_pm_arrival: string | null;
-  official_pm_departure: string | null;
-};
-function empFromRow(r: EmpRow): Employee {
-  return {
-    empNo: r.emp_no,
-    name: r.name ?? "",
-    officialAmArrival: r.official_am_arrival ?? undefined,
-    officialAmDeparture: r.official_am_departure ?? undefined,
-    officialPmArrival: r.official_pm_arrival ?? undefined,
-    officialPmDeparture: r.official_pm_departure ?? undefined,
-  };
-}
-function empToRow(e: Employee): EmpRow {
-  return {
-    emp_no: e.empNo,
-    name: e.name ?? "",
-    official_am_arrival: e.officialAmArrival ?? null,
-    official_am_departure: e.officialAmDeparture ?? null,
-    official_pm_arrival: e.officialPmArrival ?? null,
-    official_pm_departure: e.officialPmDeparture ?? null,
-  };
-}
-
-type LogRow = { id?: number; emp_no: string; log_date: string; log_time: string };
-function logFromRow(r: LogRow): RawLog {
-  return { empNo: r.emp_no, date: r.log_date, time: r.log_time };
-}
-
-type OvRow = {
-  emp_no: string;
-  day_key: string;
-  am_arrival: string | null;
-  am_departure: string | null;
-  pm_arrival: string | null;
-  pm_departure: string | null;
-};
-function ovKey(empNo: string, day: string) {
-  return `${empNo}|${day}`;
+function persistCurrent(id: string) {
+  try {
+    localStorage.setItem(LS_CURRENT, id);
+  } catch {
+    /* ignore */
+  }
 }
 
 // ---------- bootstrap ----------
-async function fetchAllLogs(): Promise<LogRow[]> {
-  const pageSize = 1000;
-  let from = 0;
-  const all: LogRow[] = [];
-  // Paginate past PostgREST's default 1000-row cap.
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const { data, error } = await supabase
-      .from("dtr_logs")
-      .select("*")
-      .order("id", { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) {
-      console.error("[fetchAllLogs]", error);
-      break;
-    }
-    const rows = (data ?? []) as LogRow[];
-    all.push(...rows);
-    if (rows.length < pageSize) break;
-    from += pageSize;
-  }
-  return all;
-}
-
 async function bootstrap() {
   if (bootstrapped) return;
   bootstrapped = true;
+
   try {
-    const [emps, allLogs, ovs, settings] = await Promise.all([
-      supabase.from("dtr_employees").select("*").order("emp_no"),
-      fetchAllLogs(),
-      supabase.from("dtr_overrides").select("*"),
-      supabase.from("dtr_settings").select("*").eq("id", 1).maybeSingle(),
+    // Catalog + global settings
+    const [biometrics, verifiedBy] = await Promise.all([
+      P.fetchBiometrics(),
+      P.fetchVerifiedBy(),
     ]);
-    const employees = (emps.data ?? []).map((r) => empFromRow(r as EmpRow));
-    const rawLogs = allLogs.map((r) => logFromRow(r));
-    const overrides: DayOverrides = {};
-    for (const r of (ovs.data ?? []) as OvRow[]) {
-      overrides[ovKey(r.emp_no, r.day_key)] = {
-        amArrival: r.am_arrival ?? "",
-        amDeparture: r.am_departure ?? "",
-        pmArrival: r.pm_arrival ?? "",
-        pmDeparture: r.pm_departure ?? "",
-      };
+
+    // Ensure Biometric 1 exists even on a fresh DB.
+    let list: Biometric[] = biometrics.map((b) => ({ id: b.id, name: b.name }));
+    if (list.length === 0) {
+      try {
+        await P.upsertBiometric({ id: "1", name: "Biometric 1" });
+        list = [{ id: "1", name: "Biometric 1" }];
+      } catch (e) {
+        console.error("[bootstrap] failed to seed biometric", e);
+      }
     }
-    setState({
-      employees,
-      logs: rawLogs,
-      overrides,
-      verifiedBy: (settings.data as { verified_by?: string } | null)?.verified_by ?? "",
-      ready: true,
-    });
+
+    // Resolve current selection; fall back to first available.
+    let current = state.currentBiometricId;
+    if (!list.some((b) => b.id === current)) current = list[0]?.id ?? "1";
+    persistCurrent(current);
+
+    setState({ biometrics: list, currentBiometricId: current, verifiedBy });
+
+    // Warm-paint from cache (if any) then refresh from Supabase.
+    const cached = await attendanceRepository.readCached(current);
+    if (cached) {
+      setState({
+        employees: cached.employees,
+        logs: cached.logs,
+        overrides: cached.overrides,
+      });
+    }
+    await loadBiometric(current, /* showStaleFirst */ false);
+    setState({ ready: true });
+
+    subscribeRealtime();
   } catch (err) {
     console.error("[dtr-store] bootstrap failed", err);
     setState({ ready: true });
   }
+}
 
-  // Realtime sync
-  supabase
+async function loadBiometric(id: string, showStaleFirst = true) {
+  if (showStaleFirst) {
+    const cached = await attendanceRepository.readCached(id);
+    if (cached) {
+      setState({
+        employees: cached.employees,
+        logs: cached.logs,
+        overrides: cached.overrides,
+      });
+    } else {
+      // Clear UI while waiting for fresh data
+      setState({ employees: [], logs: [], overrides: {} });
+    }
+  }
+  try {
+    const snap = await attendanceRepository.refreshFromSupabase(id);
+    if (state.currentBiometricId !== id) return; // user switched away
+    setState({ employees: snap.employees, logs: snap.logs, overrides: snap.overrides });
+  } catch (e) {
+    console.error("[loadBiometric] refresh failed", e);
+  }
+}
+
+function subscribeRealtime() {
+  if (realtimeChannel) return;
+  realtimeChannel = supabase
     .channel("dtr-sync")
-    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_employees" }, () => refreshEmployees())
-    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_logs" }, () => refreshLogs())
-    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_overrides" }, () => refreshOverrides())
-    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_settings" }, () => refreshSettings())
+    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_biometrics" }, async () => {
+      const list = (await P.fetchBiometrics()).map((b) => ({ id: b.id, name: b.name }));
+      setState({ biometrics: list });
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_employees" }, (payload) => {
+      const rec = (payload.new ?? payload.old) as { biometric_id?: string } | undefined;
+      if (!rec || rec.biometric_id === state.currentBiometricId) {
+        void refreshCurrentEmployees();
+      }
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_logs" }, (payload) => {
+      const rec = (payload.new ?? payload.old) as { biometric_id?: string } | undefined;
+      if (!rec || rec.biometric_id === state.currentBiometricId) {
+        void refreshCurrentLogs();
+      }
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_overrides" }, (payload) => {
+      const rec = (payload.new ?? payload.old) as { biometric_id?: string } | undefined;
+      if (!rec || rec.biometric_id === state.currentBiometricId) {
+        void refreshCurrentOverrides();
+      }
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "dtr_settings" }, async () => {
+      setState({ verifiedBy: await P.fetchVerifiedBy() });
+    })
     .subscribe();
 }
 
-async function refreshEmployees() {
-  const { data } = await supabase.from("dtr_employees").select("*").order("emp_no");
-  setState({ employees: (data ?? []).map((r) => empFromRow(r as EmpRow)) });
+// Debounced per-entity refreshers for realtime fan-out.
+let empTimer: ReturnType<typeof setTimeout> | null = null;
+let logTimer: ReturnType<typeof setTimeout> | null = null;
+let ovTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function refreshCurrentEmployees() {
+  if (empTimer) clearTimeout(empTimer);
+  empTimer = setTimeout(async () => {
+    const id = state.currentBiometricId;
+    const employees = await P.fetchEmployees(id);
+    if (state.currentBiometricId !== id) return;
+    setState({ employees });
+    await cacheService.writeSnapshot(id, {
+      employees,
+      logs: state.logs,
+      overrides: state.overrides,
+    });
+  }, 250);
 }
-async function refreshLogs() {
-  const data = await fetchAllLogs();
-  const seen = new Set<string>();
-  const deduped: RawLog[] = [];
-  for (const r of data) {
-    const l = logFromRow(r);
-    const k = `${l.empNo}|${l.date}|${l.time}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    deduped.push(l);
-  }
-  setState({ logs: deduped });
+async function refreshCurrentLogs() {
+  if (logTimer) clearTimeout(logTimer);
+  logTimer = setTimeout(async () => {
+    const id = state.currentBiometricId;
+    const logs = await P.fetchLogs(id);
+    if (state.currentBiometricId !== id) return;
+    setState({ logs });
+    await cacheService.writeSnapshot(id, {
+      employees: state.employees,
+      logs,
+      overrides: state.overrides,
+    });
+  }, 400);
 }
-async function refreshOverrides() {
-  const { data } = await supabase.from("dtr_overrides").select("*");
-  const overrides: DayOverrides = {};
-  for (const r of (data ?? []) as OvRow[]) {
-    overrides[ovKey(r.emp_no, r.day_key)] = {
-      amArrival: r.am_arrival ?? "",
-      amDeparture: r.am_departure ?? "",
-      pmArrival: r.pm_arrival ?? "",
-      pmDeparture: r.pm_departure ?? "",
-    };
-  }
-  setState({ overrides });
-}
-async function refreshSettings() {
-  const { data } = await supabase.from("dtr_settings").select("*").eq("id", 1).maybeSingle();
-  setState({ verifiedBy: (data as { verified_by?: string } | null)?.verified_by ?? "" });
+async function refreshCurrentOverrides() {
+  if (ovTimer) clearTimeout(ovTimer);
+  ovTimer = setTimeout(async () => {
+    const id = state.currentBiometricId;
+    const overrides = await P.fetchOverrides(id);
+    if (state.currentBiometricId !== id) return;
+    setState({ overrides });
+    await cacheService.writeSnapshot(id, {
+      employees: state.employees,
+      logs: state.logs,
+      overrides,
+    });
+  }, 250);
 }
 
 // ---------- public hook ----------
@@ -193,21 +232,63 @@ export function useDtrStore() {
     };
   }, []);
 
+  const biometricId = state.currentBiometricId;
+
   return {
     state,
 
-    async addEmployee(emp: Employee) {
-      setState({ employees: [...state.employees.filter((e) => e.empNo !== emp.empNo), emp] });
-      const { error } = await supabase.from("dtr_employees").upsert(empToRow(emp));
-      if (error) console.error("[addEmployee]", error);
+    // ---- Biometrics ----
+    async setCurrentBiometric(id: string) {
+      if (id === state.currentBiometricId) return;
+      persistCurrent(id);
+      setState({ currentBiometricId: id });
+      await loadBiometric(id, true);
     },
-    async updateEmployee(empNo: string, patch: Partial<Employee>) {
-      const next = state.employees.map((e) => (e.empNo === empNo ? { ...e, ...patch } : e));
-      setState({ employees: next });
-      const row = next.find((e) => e.empNo === empNo);
-      if (row) {
-        const { error } = await supabase.from("dtr_employees").upsert(empToRow(row));
-        if (error) console.error("[updateEmployee]", error);
+    async createBiometric(name: string) {
+      const trimmed = name.trim() || "Untitled biometric";
+      // Generate next numeric id (string).
+      const used = new Set(state.biometrics.map((b) => b.id));
+      let n = state.biometrics.length + 1;
+      while (used.has(String(n))) n++;
+      const id = String(n);
+      await P.upsertBiometric({ id, name: trimmed });
+      const list = [...state.biometrics, { id, name: trimmed }];
+      setState({ biometrics: list });
+      return id;
+    },
+    async renameBiometric(id: string, name: string) {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      await P.upsertBiometric({ id, name: trimmed });
+      setState({
+        biometrics: state.biometrics.map((b) => (b.id === id ? { ...b, name: trimmed } : b)),
+      });
+    },
+    async deleteBiometric(id: string) {
+      if (state.biometrics.length <= 1) {
+        throw new Error("Cannot delete the last biometric");
+      }
+      await P.deleteBiometricCascade(id);
+      await cacheService.clear(id);
+      const list = state.biometrics.filter((b) => b.id !== id);
+      setState({ biometrics: list });
+      if (state.currentBiometricId === id) {
+        const next = list[0].id;
+        persistCurrent(next);
+        setState({ currentBiometricId: next });
+        await loadBiometric(next, true);
+      }
+    },
+
+    // ---- Employees ----
+    async addEmployee(emp: Employee) {
+      setState({
+        employees: [...state.employees.filter((e) => e.empNo !== emp.empNo), emp],
+      });
+      try {
+        await P.upsertEmployee(biometricId, emp);
+      } catch (e) {
+        console.error("[addEmployee]", e);
       }
     },
     async saveEmployee(oldEmpNo: string, updated: Employee) {
@@ -224,40 +305,43 @@ export function useDtrStore() {
       let nextOverrides = state.overrides;
       if (renaming) {
         nextLogs = state.logs.map((l) =>
-          l.empNo === oldEmpNo ? { ...l, empNo: newEmpNo } : l
+          l.empNo === oldEmpNo ? { ...l, empNo: newEmpNo } : l,
         );
         nextOverrides = {};
         for (const k of Object.keys(state.overrides)) {
           const [emp, day] = k.split("|");
-          const targetKey = emp === oldEmpNo ? `${newEmpNo}|${day}` : k;
-          nextOverrides[targetKey] = state.overrides[k];
+          const target = emp === oldEmpNo ? `${newEmpNo}|${day}` : k;
+          nextOverrides[target] = state.overrides[k];
         }
       }
       setState({ employees: nextEmployees, logs: nextLogs, overrides: nextOverrides });
 
-      if (renaming) {
-        const { error: e1 } = await supabase
-          .from("dtr_logs").update({ emp_no: newEmpNo }).eq("emp_no", oldEmpNo);
-        if (e1) console.error("[saveEmployee logs]", e1);
-        const { error: e2 } = await supabase
-          .from("dtr_overrides").update({ emp_no: newEmpNo }).eq("emp_no", oldEmpNo);
-        if (e2) console.error("[saveEmployee overrides]", e2);
-        const { error: e3 } = await supabase
-          .from("dtr_employees").delete().eq("emp_no", oldEmpNo);
-        if (e3) console.error("[saveEmployee delete old]", e3);
+      try {
+        if (renaming) {
+          await P.renameEmployeeEverywhere(biometricId, oldEmpNo, newEmpNo);
+          await P.deleteEmployee(biometricId, oldEmpNo);
+        }
+        await P.upsertEmployee(biometricId, { ...updated, empNo: newEmpNo });
+      } catch (e) {
+        console.error("[saveEmployee]", e);
+        throw e;
       }
-      const { error: e4 } = await supabase
-        .from("dtr_employees").upsert(empToRow({ ...updated, empNo: newEmpNo }));
-      if (e4) console.error("[saveEmployee upsert]", e4);
     },
     async removeEmployee(empNo: string) {
       setState({ employees: state.employees.filter((e) => e.empNo !== empNo) });
-      const { error } = await supabase.from("dtr_employees").delete().eq("emp_no", empNo);
-      if (error) console.error("[removeEmployee]", error);
+      try {
+        await P.deleteEmployee(biometricId, empNo);
+      } catch (e) {
+        console.error("[removeEmployee]", e);
+      }
     },
-    async addLogs(logs: RawLog[]): Promise<{ inserted: number; skipped: number; error?: string }> {
+
+    // ---- Logs ----
+    async addLogs(
+      logs: RawLog[],
+    ): Promise<{ inserted: number; skipped: number; error?: string }> {
       if (logs.length === 0) return { inserted: 0, skipped: 0 };
-      // Dedupe vs. current state AND within the incoming batch.
+      // Local dedupe vs current state.
       const existing = new Set(state.logs.map((l) => `${l.empNo}|${l.date}|${l.time}`));
       const fresh: RawLog[] = [];
       for (const l of logs) {
@@ -267,62 +351,75 @@ export function useDtrStore() {
         fresh.push(l);
       }
       const skipped = logs.length - fresh.length;
-      if (fresh.length === 0) return { inserted: 0, skipped };
-      setState({ logs: [...state.logs, ...fresh] });
-      const rows = fresh.map((l) => ({ emp_no: l.empNo, log_date: l.date, log_time: l.time }));
-      const chunk = 500;
-      let firstError: string | undefined;
-      for (let i = 0; i < rows.length; i += chunk) {
-        const { error } = await supabase.from("dtr_logs").insert(rows.slice(i, i + chunk));
-        if (error) {
-          console.error("[addLogs]", error);
-          firstError ||= error.message;
-        }
+      if (fresh.length === 0) {
+        setState({ importProgress: null });
+        return { inserted: 0, skipped };
       }
-      // Resync from DB so realtime can't overwrite us with a stale snapshot.
-      await refreshLogs();
-      return { inserted: fresh.length, skipped, error: firstError };
+      // Optimistic UI.
+      setState({ logs: [...state.logs, ...fresh], importProgress: { total: fresh.length, done: 0, chunkIndex: 0, chunkCount: 0, failedChunks: 0 } });
+
+      const result = await importLogsService(fresh, {
+        biometricId,
+        chunkSize: 500,
+        onProgress: (p) => setState({ importProgress: p }),
+      });
+
+      setState({ importProgress: null });
+
+      // Hard-resync from DB so realtime can't overwrite us with stale data.
+      await refreshCurrentLogs();
+      return {
+        inserted: result.inserted,
+        skipped,
+        error: result.firstError,
+      };
     },
     async clearLogs() {
       setState({ logs: [] });
-      const { error } = await supabase.from("dtr_logs").delete().neq("id", -1);
-      if (error) console.error("[clearLogs]", error);
+      try {
+        await P.clearLogsFor(biometricId);
+      } catch (e) {
+        console.error("[clearLogs]", e);
+      }
     },
+
+    // ---- Overrides ----
     async setOverride(empNo: string, date: string, field: keyof DayRecord, value: string) {
-      const key = ovKey(empNo, date);
+      const key = `${empNo}|${date}`;
       const existing = state.overrides[key] || {};
       const next = { ...existing, [field]: value };
       setState({ overrides: { ...state.overrides, [key]: next } });
-      const row: OvRow = {
-        emp_no: empNo,
-        day_key: date,
-        am_arrival: next.amArrival ?? null,
-        am_departure: next.amDeparture ?? null,
-        pm_arrival: next.pmArrival ?? null,
-        pm_departure: next.pmDeparture ?? null,
-      };
-      const { error } = await supabase.from("dtr_overrides").upsert(row);
-      if (error) console.error("[setOverride]", error);
+      try {
+        await P.setOverrideRow(biometricId, empNo, date, next);
+      } catch (e) {
+        console.error("[setOverride]", e);
+      }
     },
     async clearOverrides(empNo?: string) {
       if (!empNo) {
         setState({ overrides: {} });
-        await supabase.from("dtr_overrides").delete().neq("emp_no", "");
       } else {
         const ov: DayOverrides = {};
         for (const k of Object.keys(state.overrides)) {
           if (!k.startsWith(`${empNo}|`)) ov[k] = state.overrides[k];
         }
         setState({ overrides: ov });
-        await supabase.from("dtr_overrides").delete().eq("emp_no", empNo);
+      }
+      try {
+        await P.clearOverridesFor(biometricId, empNo);
+      } catch (e) {
+        console.error("[clearOverrides]", e);
       }
     },
+
+    // ---- Settings ----
     async setVerifiedBy(v: string) {
       setState({ verifiedBy: v });
-      const { error } = await supabase
-        .from("dtr_settings")
-        .upsert({ id: 1, verified_by: v, updated_at: new Date().toISOString() });
-      if (error) console.error("[setVerifiedBy]", error);
+      try {
+        await P.setVerifiedByRow(v);
+      } catch (e) {
+        console.error("[setVerifiedBy]", e);
+      }
     },
   };
 }
