@@ -644,6 +644,30 @@ function LogsPanel() {
               Clear stored logs
             </Button>
           </div>
+          {store.state.importProgress && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>
+                  Importing chunk {store.state.importProgress.chunkIndex}/
+                  {store.state.importProgress.chunkCount}
+                  {store.state.importProgress.failedChunks > 0 &&
+                    ` · ${store.state.importProgress.failedChunks} failed`}
+                </span>
+                <span>
+                  {store.state.importProgress.done}/{store.state.importProgress.total}
+                </span>
+              </div>
+              <Progress
+                value={
+                  store.state.importProgress.total === 0
+                    ? 0
+                    : (store.state.importProgress.done /
+                        store.state.importProgress.total) *
+                      100
+                }
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
