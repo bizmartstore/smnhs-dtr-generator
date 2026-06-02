@@ -45,6 +45,7 @@
         "date-fns": "^4.1.0",
         "embla-carousel-react": "^8.6.0",
         "html2canvas": "^1.4.1",
+        "idb-keyval": "^6.2.4",
         "input-otp": "^1.4.2",
         "jspdf": "^4.2.1",
         "lucide-react": "^0.575.0",
@@ -902,6 +903,8 @@
     "iceberg-js": ["iceberg-js@0.8.1", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/iceberg-js/-/iceberg-js-0.8.1.tgz", {}, "sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA=="],
 
     "iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
+
+    "idb-keyval": ["idb-keyval@6.2.4", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/idb-keyval/-/idb-keyval-6.2.4.tgz", {}, "sha512-D/NzHWUmYJGXi++z67aMSrnisb9A3621CyRK5G89JyTlN13C8xf0g04DLxUKMufPem3e3L2JAXR6Z00OWy183Q=="],
 
     "ignore": ["ignore@5.3.2", "", {}, "sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g=="],
 
