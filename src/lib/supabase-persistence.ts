@@ -1,0 +1,240 @@
+// Supabase persistence layer for DTR entities.
+// All reads/writes are scoped to a biometric_id.
+import { supabase } from "./supabase";
+import type { Employee, RawLog, DayOverrides, DayRecord } from "./dtr";
+
+// ---- Row types ----
+export type EmpRow = {
+  biometric_id: string;
+  emp_no: string;
+  name: string;
+  official_am_arrival: string | null;
+  official_am_departure: string | null;
+  official_pm_arrival: string | null;
+  official_pm_departure: string | null;
+};
+export type LogRow = {
+  id?: number;
+  biometric_id: string;
+  emp_no: string;
+  log_date: string;
+  log_time: string;
+};
+export type OvRow = {
+  biometric_id: string;
+  emp_no: string;
+  day_key: string;
+  am_arrival: string | null;
+  am_departure: string | null;
+  pm_arrival: string | null;
+  pm_departure: string | null;
+};
+export type BiometricRow = { id: string; name: string; created_at?: string };
+
+export function empFromRow(r: EmpRow): Employee {
+  return {
+    empNo: r.emp_no,
+    name: r.name ?? "",
+    officialAmArrival: r.official_am_arrival ?? undefined,
+    officialAmDeparture: r.official_am_departure ?? undefined,
+    officialPmArrival: r.official_pm_arrival ?? undefined,
+    officialPmDeparture: r.official_pm_departure ?? undefined,
+  };
+}
+export function empToRow(biometricId: string, e: Employee): EmpRow {
+  return {
+    biometric_id: biometricId,
+    emp_no: e.empNo,
+    name: e.name ?? "",
+    official_am_arrival: e.officialAmArrival ?? null,
+    official_am_departure: e.officialAmDeparture ?? null,
+    official_pm_arrival: e.officialPmArrival ?? null,
+    official_pm_departure: e.officialPmDeparture ?? null,
+  };
+}
+export function logFromRow(r: LogRow): RawLog {
+  return { empNo: r.emp_no, date: r.log_date, time: r.log_time };
+}
+export function ovKey(empNo: string, day: string) {
+  return `${empNo}|${day}`;
+}
+
+// ---- Biometrics ----
+export async function fetchBiometrics(): Promise<BiometricRow[]> {
+  const { data, error } = await supabase
+    .from("dtr_biometrics")
+    .select("*")
+    .order("id", { ascending: true });
+  if (error) {
+    console.error("[fetchBiometrics]", error);
+    return [];
+  }
+  return (data ?? []) as BiometricRow[];
+}
+export async function upsertBiometric(row: BiometricRow) {
+  const { error } = await supabase.from("dtr_biometrics").upsert(row);
+  if (error) throw error;
+}
+export async function deleteBiometricCascade(id: string) {
+  // Hard-delete a biometric and ALL its scoped data.
+  await supabase.from("dtr_logs").delete().eq("biometric_id", id);
+  await supabase.from("dtr_overrides").delete().eq("biometric_id", id);
+  await supabase.from("dtr_employees").delete().eq("biometric_id", id);
+  const { error } = await supabase.from("dtr_biometrics").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---- Paginated reads (PostgREST 1000-row cap) ----
+async function paginate<T>(
+  build: (from: number, to: number) => Promise<{ data: T[] | null; error: unknown }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await build(from, from + pageSize - 1);
+    if (error) {
+      console.error("[paginate]", error);
+      break;
+    }
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return out;
+}
+
+export async function fetchEmployees(biometricId: string): Promise<Employee[]> {
+  const rows = await paginate<EmpRow>((from, to) =>
+    supabase
+      .from("dtr_employees")
+      .select("*")
+      .eq("biometric_id", biometricId)
+      .order("emp_no", { ascending: true })
+      .range(from, to),
+  );
+  return rows.map(empFromRow);
+}
+
+export async function fetchLogs(biometricId: string): Promise<RawLog[]> {
+  const rows = await paginate<LogRow>((from, to) =>
+    supabase
+      .from("dtr_logs")
+      .select("*")
+      .eq("biometric_id", biometricId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  // Dedup defensively in case the unique index is absent on older databases.
+  const seen = new Set<string>();
+  const out: RawLog[] = [];
+  for (const r of rows) {
+    const l = logFromRow(r);
+    const k = `${l.empNo}|${l.date}|${l.time}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(l);
+  }
+  return out;
+}
+
+export async function fetchOverrides(biometricId: string): Promise<DayOverrides> {
+  const rows = await paginate<OvRow>((from, to) =>
+    supabase
+      .from("dtr_overrides")
+      .select("*")
+      .eq("biometric_id", biometricId)
+      .range(from, to),
+  );
+  const out: DayOverrides = {};
+  for (const r of rows) {
+    out[ovKey(r.emp_no, r.day_key)] = {
+      amArrival: r.am_arrival ?? "",
+      amDeparture: r.am_departure ?? "",
+      pmArrival: r.pm_arrival ?? "",
+      pmDeparture: r.pm_departure ?? "",
+    };
+  }
+  return out;
+}
+
+// ---- Mutations ----
+export async function upsertEmployee(biometricId: string, e: Employee) {
+  const { error } = await supabase
+    .from("dtr_employees")
+    .upsert(empToRow(biometricId, e), { onConflict: "biometric_id,emp_no" });
+  if (error) throw error;
+}
+export async function deleteEmployee(biometricId: string, empNo: string) {
+  const { error } = await supabase
+    .from("dtr_employees")
+    .delete()
+    .eq("biometric_id", biometricId)
+    .eq("emp_no", empNo);
+  if (error) throw error;
+}
+export async function renameEmployeeEverywhere(
+  biometricId: string,
+  oldEmpNo: string,
+  newEmpNo: string,
+) {
+  const t = { emp_no: newEmpNo };
+  const eq = (q: ReturnType<typeof supabase.from>) =>
+    q.eq("biometric_id", biometricId).eq("emp_no", oldEmpNo);
+  const r1 = await eq(supabase.from("dtr_logs").update(t));
+  if (r1.error) throw r1.error;
+  const r2 = await eq(supabase.from("dtr_overrides").update(t));
+  if (r2.error) throw r2.error;
+}
+
+export async function setOverrideRow(
+  biometricId: string,
+  empNo: string,
+  day: string,
+  patch: Partial<DayRecord>,
+) {
+  const row: OvRow = {
+    biometric_id: biometricId,
+    emp_no: empNo,
+    day_key: day,
+    am_arrival: patch.amArrival ?? null,
+    am_departure: patch.amDeparture ?? null,
+    pm_arrival: patch.pmArrival ?? null,
+    pm_departure: patch.pmDeparture ?? null,
+  };
+  const { error } = await supabase
+    .from("dtr_overrides")
+    .upsert(row, { onConflict: "biometric_id,emp_no,day_key" });
+  if (error) throw error;
+}
+
+export async function clearOverridesFor(biometricId: string, empNo?: string) {
+  let q = supabase.from("dtr_overrides").delete().eq("biometric_id", biometricId);
+  if (empNo) q = q.eq("emp_no", empNo);
+  const { error } = await q;
+  if (error) throw error;
+}
+
+export async function clearLogsFor(biometricId: string) {
+  const { error } = await supabase
+    .from("dtr_logs")
+    .delete()
+    .eq("biometric_id", biometricId);
+  if (error) throw error;
+}
+
+export async function fetchVerifiedBy(): Promise<string> {
+  const { data } = await supabase
+    .from("dtr_settings")
+    .select("verified_by")
+    .eq("id", 1)
+    .maybeSingle();
+  return (data as { verified_by?: string } | null)?.verified_by ?? "";
+}
+export async function setVerifiedByRow(v: string) {
+  const { error } = await supabase
+    .from("dtr_settings")
+    .upsert({ id: 1, verified_by: v, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
