@@ -862,6 +862,8 @@ function DtrPanel({
               <Printer className="h-4 w-4 mr-2" />
               <span className="sm:inline">Print (3 per page, landscape A4)</span>
             </Button>
+            <PrintSetupButton />
+
             <Button
               className="w-full sm:w-auto"
               variant="secondary"
