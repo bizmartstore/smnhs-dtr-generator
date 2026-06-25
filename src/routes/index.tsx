@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { Trash2, Printer, FileDown, Pencil, Search, ArrowUpDown } from "lucide-react";
+import { Trash2, Printer, FileDown, Pencil, Search, ArrowUpDown, Settings2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -862,6 +862,8 @@ function DtrPanel({
               <Printer className="h-4 w-4 mr-2" />
               <span className="sm:inline">Print (3 per page, landscape A4)</span>
             </Button>
+            <PrintSetupButton />
+
             <Button
               className="w-full sm:w-auto"
               variant="secondary"
@@ -992,3 +994,163 @@ function PrintArea({
     </div>
   );
 }
+
+// ---- Print Setup ----------------------------------------------------------
+// Browsers do not allow apps to bypass the native print dialog. This dialog
+// lets the user pre-configure @page margins and a content scale that get
+// injected as a <style> tag, so the browser dialog becomes a one-click step.
+
+type PrintSetup = {
+  marginMm: number; // @page margin
+  scalePct: number; // content scale (%)
+  orientation: "landscape" | "portrait";
+};
+
+const PRINT_SETUP_KEY = "dtr.printSetup.v1";
+const DEFAULT_SETUP: PrintSetup = { marginMm: 0, scalePct: 100, orientation: "landscape" };
+
+function loadPrintSetup(): PrintSetup {
+  if (typeof window === "undefined") return DEFAULT_SETUP;
+  try {
+    const raw = window.localStorage.getItem(PRINT_SETUP_KEY);
+    if (!raw) return DEFAULT_SETUP;
+    return { ...DEFAULT_SETUP, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_SETUP;
+  }
+}
+
+function applyPrintSetup(s: PrintSetup) {
+  if (typeof document === "undefined") return;
+  const id = "dtr-print-setup-style";
+  let el = document.getElementById(id) as HTMLStyleElement | null;
+  if (!el) {
+    el = document.createElement("style");
+    el.id = id;
+    document.head.appendChild(el);
+  }
+  el.textContent = `
+    @media print {
+      @page { size: A4 ${s.orientation}; margin: ${s.marginMm}mm; }
+      .dtr-page { transform: scale(${s.scalePct / 100}); transform-origin: top left; }
+    }
+  `;
+}
+
+function PrintSetupButton() {
+  const [open, setOpen] = useState(false);
+  const [setup, setSetup] = useState<PrintSetup>(() => loadPrintSetup());
+
+  // Apply on mount so saved prefs are active for the Print button.
+  useMemo(() => applyPrintSetup(setup), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full sm:w-auto"
+        onClick={() => setOpen(true)}
+      >
+        <Settings2 className="h-4 w-4 mr-2" />
+        Print Setup
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Print Setup</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <p className="text-muted-foreground">
+              Browsers always show their own print dialog for security. These
+              settings are injected into the page so the dialog opens with
+              your preferred layout — just press Enter to print.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Orientation</Label>
+                <Select
+                  value={setup.orientation}
+                  onValueChange={(v) =>
+                    setSetup({ ...setup, orientation: v as PrintSetup["orientation"] })
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="landscape">Landscape</SelectItem>
+                    <SelectItem value="portrait">Portrait</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Page margin (mm)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={setup.marginMm}
+                  onChange={(e) =>
+                    setSetup({ ...setup, marginMm: Number(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="col-span-2">
+                <Label>Content scale (%)</Label>
+                <Input
+                  type="number"
+                  min={50}
+                  max={150}
+                  value={setup.scalePct}
+                  onChange={(e) =>
+                    setSetup({ ...setup, scalePct: Number(e.target.value) || 100 })
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tip: in the browser's print dialog, also turn on "Background
+              graphics" and set Margins to "Default" (or "None" if you set 0 mm
+              here) for best results.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setSetup(DEFAULT_SETUP);
+                applyPrintSetup(DEFAULT_SETUP);
+                try { window.localStorage.removeItem(PRINT_SETUP_KEY); } catch {}
+                toast.success("Print setup reset to defaults");
+              }}
+            >
+              Reset
+            </Button>
+            <Button
+              onClick={() => {
+                applyPrintSetup(setup);
+                try {
+                  window.localStorage.setItem(PRINT_SETUP_KEY, JSON.stringify(setup));
+                } catch {}
+                toast.success("Print setup saved");
+                setOpen(false);
+              }}
+            >
+              Save
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                applyPrintSetup(setup);
+                setOpen(false);
+                setTimeout(() => window.print(), 50);
+              }}
+            >
+              <Printer className="h-4 w-4 mr-2" /> Save & Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
