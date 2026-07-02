@@ -444,7 +444,8 @@ function EmployeesPanel() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </CardContent>
