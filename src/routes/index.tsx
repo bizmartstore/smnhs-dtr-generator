@@ -455,10 +455,14 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
   const store = useDtrStore();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Employee>(employee);
+  const [term, setTerm] = useState<TermKey>(store.state.activeTerm);
 
   const onOpenChange = (v: boolean) => {
     setOpen(v);
-    if (v) setDraft(employee);
+    if (v) {
+      setDraft(employee);
+      setTerm(store.state.activeTerm);
+    }
   };
 
   const save = async () => {
@@ -477,6 +481,15 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update");
     }
+  };
+
+  const times = getTermTimes(draft, term);
+  const updateTime = (field: keyof typeof times, value: string) => {
+    setDraft((d) => setTermTimes(d, term, { ...getTermTimes(d, term), [field]: value }));
+  };
+  const copyFrom = (source: TermKey) => {
+    setDraft((d) => setTermTimes(d, term, getTermTimes(d, source)));
+    toast.success(`Copied Term ${source} times into Term ${term}`);
   };
 
   return (
@@ -503,46 +516,77 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>Official AM Arrival</Label>
-              <Input
-                type="time"
-                value={draft.officialAmArrival || ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, officialAmArrival: e.target.value })
-                }
-              />
+
+          <div className="space-y-2 border rounded-md p-2 bg-muted/30">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1 rounded-md border p-1 bg-background">
+                <span className="text-xs text-muted-foreground px-1">Term</span>
+                {TERM_KEYS.map((t) => (
+                  <Button
+                    key={t}
+                    type="button"
+                    size="sm"
+                    variant={term === t ? "default" : "ghost"}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setTerm(t)}
+                  >
+                    {t}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                {TERM_KEYS.filter((t) => t !== term).map((t) => (
+                  <Button
+                    key={t}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => copyFrom(t)}
+                  >
+                    Copy from T{t}
+                  </Button>
+                ))}
+              </div>
             </div>
-            <div>
-              <Label>Official AM Departure</Label>
-              <Input
-                type="time"
-                value={draft.officialAmDeparture || ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, officialAmDeparture: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label>Official PM Arrival</Label>
-              <Input
-                type="time"
-                value={draft.officialPmArrival || ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, officialPmArrival: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label>Official PM Departure</Label>
-              <Input
-                type="time"
-                value={draft.officialPmDeparture || ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, officialPmDeparture: e.target.value })
-                }
-              />
+            <p className="text-xs text-muted-foreground">
+              Set the official times for <strong>Term {term}</strong>. Switch
+              tabs to edit other terms. The DTR uses the term currently selected
+              in the header.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Official AM Arrival</Label>
+                <Input
+                  type="time"
+                  value={times.amArrival || ""}
+                  onChange={(e) => updateTime("amArrival", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Official AM Departure</Label>
+                <Input
+                  type="time"
+                  value={times.amDeparture || ""}
+                  onChange={(e) => updateTime("amDeparture", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Official PM Arrival</Label>
+                <Input
+                  type="time"
+                  value={times.pmArrival || ""}
+                  onChange={(e) => updateTime("pmArrival", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Official PM Departure</Label>
+                <Input
+                  type="time"
+                  value={times.pmDeparture || ""}
+                  onChange={(e) => updateTime("pmDeparture", e.target.value)}
+                />
+              </div>
             </div>
           </div>
         </div>
