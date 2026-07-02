@@ -6,7 +6,7 @@
 //   - IndexedDB (via cache-service) = warm cache for instant first paint
 //   - dtr_sync_counters realtime (1 event per bulk import) + incremental log fetch
 import { useEffect, useState } from "react";
-import type { Employee, RawLog, DayRecord, DayOverrides } from "./dtr";
+import type { Employee, RawLog, DayRecord, DayOverrides, TermKey } from "./dtr";
 import { supabase } from "./supabase";
 import * as P from "./supabase-persistence";
 import { attendanceRepository } from "./attendance-repository";
@@ -31,11 +31,21 @@ type Store = {
   /** Set when Supabase is missing the biometrics migration tables/columns. */
   schemaError: string | null;
 
+  /** Currently-selected term (1/2/3). Persisted per-browser in localStorage. */
+  activeTerm: TermKey;
+
   // Import UX
   importProgress: ImportProgress | null;
 };
 
 const LS_CURRENT = "dtr:currentBiometricId";
+const LS_TERM = "dtr:activeTerm";
+
+function loadActiveTerm(): TermKey {
+  if (typeof localStorage === "undefined") return "1";
+  const v = localStorage.getItem(LS_TERM);
+  return v === "2" || v === "3" ? v : "1";
+}
 
 const DEFAULT: Store = {
   biometrics: [],
@@ -46,6 +56,7 @@ const DEFAULT: Store = {
   verifiedBy: "",
   ready: false,
   schemaError: null,
+  activeTerm: loadActiveTerm(),
   importProgress: null,
 };
 
@@ -475,6 +486,12 @@ export function useDtrStore() {
       } catch (e) {
         console.error("[setVerifiedBy]", e);
       }
+    },
+
+    setActiveTerm(t: TermKey) {
+      if (t === state.activeTerm) return;
+      try { localStorage.setItem(LS_TERM, t); } catch { /* ignore */ }
+      setState({ activeTerm: t });
     },
   };
 }
