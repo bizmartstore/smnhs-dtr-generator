@@ -37,11 +37,17 @@ import {
   MONTHS,
   buildMonthRecords,
   parseRawLogs,
+  effectiveEmployee,
+  getTermTimes,
+  setTermTimes,
+  TERM_KEYS,
   type Employee,
   type DayRecord,
+  type TermKey,
 } from "@/lib/dtr";
 import { DtrSheet } from "@/components/dtr/DtrSheet";
 import { BiometricSwitcher } from "@/components/dtr/BiometricSwitcher";
+import { TermSwitcher } from "@/components/dtr/TermSwitcher";
 import { EmployeePicker } from "@/components/dtr/EmployeePicker";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -85,7 +91,10 @@ function Index() {
               Print 3 per A4 landscape page
             </p>
           </div>
-          <BiometricSwitcher />
+          <div className="flex flex-wrap items-center gap-2">
+            <TermSwitcher />
+            <BiometricSwitcher />
+          </div>
         </div>
       </header>
 
