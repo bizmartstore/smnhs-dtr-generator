@@ -797,7 +797,8 @@ function DtrPanel({
     return Array.from(set).sort();
   }, [store.state.logs, year]);
 
-  const emp = store.state.employees.find((e) => e.empNo === selectedEmp);
+  const rawEmp = store.state.employees.find((e) => e.empNo === selectedEmp);
+  const emp = rawEmp ? effectiveEmployee(rawEmp, store.state.activeTerm) : undefined;
 
   const records = useMemo<DayRecord[]>(() => {
     if (!emp) return [];
@@ -1034,8 +1035,9 @@ function PrintArea({
   selectedEmp: string;
 }) {
   const store = useDtrStore();
-  const emp = store.state.employees.find((e) => e.empNo === selectedEmp);
-  if (!emp) return null;
+  const rawEmp = store.state.employees.find((e) => e.empNo === selectedEmp);
+  if (!rawEmp) return null;
+  const emp = effectiveEmployee(rawEmp, store.state.activeTerm);
   const records = buildMonthRecords(
     emp,
     year,
