@@ -12,6 +12,7 @@ export type EmpRow = {
   official_am_departure: string | null;
   official_pm_arrival: string | null;
   official_pm_departure: string | null;
+  terms?: Employee["terms"] | null;
 };
 export type LogRow = {
   id?: number;
@@ -39,6 +40,7 @@ export function empFromRow(r: EmpRow): Employee {
     officialAmDeparture: r.official_am_departure ?? undefined,
     officialPmArrival: r.official_pm_arrival ?? undefined,
     officialPmDeparture: r.official_pm_departure ?? undefined,
+    terms: (r.terms ?? undefined) as Employee["terms"],
   };
 }
 export function empToRow(biometricId: string, e: Employee): EmpRow {
@@ -50,6 +52,7 @@ export function empToRow(biometricId: string, e: Employee): EmpRow {
     official_am_departure: e.officialAmDeparture ?? null,
     official_pm_arrival: e.officialPmArrival ?? null,
     official_pm_departure: e.officialPmDeparture ?? null,
+    terms: e.terms ?? null,
   };
 }
 export function logFromRow(r: LogRow): RawLog {
