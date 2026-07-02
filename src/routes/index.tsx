@@ -413,7 +413,9 @@ function EmployeesPanel() {
                   {store.state.employees.length === 0 ? "No employees yet." : "No matches found."}
                 </div>
               )}
-              {filtered.map((e) => (
+              {filtered.map((e) => {
+                const eff = effectiveEmployee(e, store.state.activeTerm);
+                return (
                 <div
                   key={e.empNo}
                   className="p-3 flex items-center justify-between text-sm gap-2 border-b last:border-b-0"
@@ -423,9 +425,12 @@ function EmployeesPanel() {
                       #{e.empNo} — {e.name}
                     </div>
                     <div className="text-muted-foreground text-xs">
-                      {e.officialAmArrival || "—"} / {e.officialAmDeparture || "—"}
+                      <span className="uppercase mr-1 text-[10px] tracking-wide text-foreground/70">
+                        T{store.state.activeTerm}
+                      </span>
+                      {eff.officialAmArrival || "—"} / {eff.officialAmDeparture || "—"}
                       {" · "}
-                      {e.officialPmArrival || "—"} / {e.officialPmDeparture || "—"}
+                      {eff.officialPmArrival || "—"} / {eff.officialPmDeparture || "—"}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
