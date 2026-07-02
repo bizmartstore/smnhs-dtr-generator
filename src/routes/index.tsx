@@ -37,11 +37,17 @@ import {
   MONTHS,
   buildMonthRecords,
   parseRawLogs,
+  effectiveEmployee,
+  getTermTimes,
+  setTermTimes,
+  TERM_KEYS,
   type Employee,
   type DayRecord,
+  type TermKey,
 } from "@/lib/dtr";
 import { DtrSheet } from "@/components/dtr/DtrSheet";
 import { BiometricSwitcher } from "@/components/dtr/BiometricSwitcher";
+import { TermSwitcher } from "@/components/dtr/TermSwitcher";
 import { EmployeePicker } from "@/components/dtr/EmployeePicker";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -85,7 +91,10 @@ function Index() {
               Print 3 per A4 landscape page
             </p>
           </div>
-          <BiometricSwitcher />
+          <div className="flex flex-wrap items-center gap-2">
+            <TermSwitcher />
+            <BiometricSwitcher />
+          </div>
         </div>
       </header>
 
@@ -404,7 +413,9 @@ function EmployeesPanel() {
                   {store.state.employees.length === 0 ? "No employees yet." : "No matches found."}
                 </div>
               )}
-              {filtered.map((e) => (
+              {filtered.map((e) => {
+                const eff = effectiveEmployee(e, store.state.activeTerm);
+                return (
                 <div
                   key={e.empNo}
                   className="p-3 flex items-center justify-between text-sm gap-2 border-b last:border-b-0"
@@ -414,9 +425,12 @@ function EmployeesPanel() {
                       #{e.empNo} — {e.name}
                     </div>
                     <div className="text-muted-foreground text-xs">
-                      {e.officialAmArrival || "—"} / {e.officialAmDeparture || "—"}
+                      <span className="uppercase mr-1 text-[10px] tracking-wide text-foreground/70">
+                        T{store.state.activeTerm}
+                      </span>
+                      {eff.officialAmArrival || "—"} / {eff.officialAmDeparture || "—"}
                       {" · "}
-                      {e.officialPmArrival || "—"} / {e.officialPmDeparture || "—"}
+                      {eff.officialPmArrival || "—"} / {eff.officialPmDeparture || "—"}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -430,7 +444,8 @@ function EmployeesPanel() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </CardContent>
@@ -446,10 +461,14 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
   const store = useDtrStore();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Employee>(employee);
+  const [term, setTerm] = useState<TermKey>(store.state.activeTerm);
 
   const onOpenChange = (v: boolean) => {
     setOpen(v);
-    if (v) setDraft(employee);
+    if (v) {
+      setDraft(employee);
+      setTerm(store.state.activeTerm);
+    }
   };
 
   const save = async () => {
@@ -468,6 +487,15 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update");
     }
+  };
+
+  const times = getTermTimes(draft, term);
+  const updateTime = (field: keyof typeof times, value: string) => {
+    setDraft((d) => setTermTimes(d, term, { ...getTermTimes(d, term), [field]: value }));
+  };
+  const copyFrom = (source: TermKey) => {
+    setDraft((d) => setTermTimes(d, term, getTermTimes(d, source)));
+    toast.success(`Copied Term ${source} times into Term ${term}`);
   };
 
   return (
@@ -494,46 +522,77 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>Official AM Arrival</Label>
-              <Input
-                type="time"
-                value={draft.officialAmArrival || ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, officialAmArrival: e.target.value })
-                }
-              />
+
+          <div className="space-y-2 border rounded-md p-2 bg-muted/30">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1 rounded-md border p-1 bg-background">
+                <span className="text-xs text-muted-foreground px-1">Term</span>
+                {TERM_KEYS.map((t) => (
+                  <Button
+                    key={t}
+                    type="button"
+                    size="sm"
+                    variant={term === t ? "default" : "ghost"}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setTerm(t)}
+                  >
+                    {t}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex gap-1">
+                {TERM_KEYS.filter((t) => t !== term).map((t) => (
+                  <Button
+                    key={t}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => copyFrom(t)}
+                  >
+                    Copy from T{t}
+                  </Button>
+                ))}
+              </div>
             </div>
-            <div>
-              <Label>Official AM Departure</Label>
-              <Input
-                type="time"
-                value={draft.officialAmDeparture || ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, officialAmDeparture: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label>Official PM Arrival</Label>
-              <Input
-                type="time"
-                value={draft.officialPmArrival || ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, officialPmArrival: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label>Official PM Departure</Label>
-              <Input
-                type="time"
-                value={draft.officialPmDeparture || ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, officialPmDeparture: e.target.value })
-                }
-              />
+            <p className="text-xs text-muted-foreground">
+              Set the official times for <strong>Term {term}</strong>. Switch
+              tabs to edit other terms. The DTR uses the term currently selected
+              in the header.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Official AM Arrival</Label>
+                <Input
+                  type="time"
+                  value={times.amArrival || ""}
+                  onChange={(e) => updateTime("amArrival", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Official AM Departure</Label>
+                <Input
+                  type="time"
+                  value={times.amDeparture || ""}
+                  onChange={(e) => updateTime("amDeparture", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Official PM Arrival</Label>
+                <Input
+                  type="time"
+                  value={times.pmArrival || ""}
+                  onChange={(e) => updateTime("pmArrival", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Official PM Departure</Label>
+                <Input
+                  type="time"
+                  value={times.pmDeparture || ""}
+                  onChange={(e) => updateTime("pmDeparture", e.target.value)}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -738,7 +797,8 @@ function DtrPanel({
     return Array.from(set).sort();
   }, [store.state.logs, year]);
 
-  const emp = store.state.employees.find((e) => e.empNo === selectedEmp);
+  const rawEmp = store.state.employees.find((e) => e.empNo === selectedEmp);
+  const emp = rawEmp ? effectiveEmployee(rawEmp, store.state.activeTerm) : undefined;
 
   const records = useMemo<DayRecord[]>(() => {
     if (!emp) return [];
@@ -975,8 +1035,9 @@ function PrintArea({
   selectedEmp: string;
 }) {
   const store = useDtrStore();
-  const emp = store.state.employees.find((e) => e.empNo === selectedEmp);
-  if (!emp) return null;
+  const rawEmp = store.state.employees.find((e) => e.empNo === selectedEmp);
+  if (!rawEmp) return null;
+  const emp = effectiveEmployee(rawEmp, store.state.activeTerm);
   const records = buildMonthRecords(
     emp,
     year,

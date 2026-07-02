@@ -1,3 +1,13 @@
+export type TermKey = "1" | "2" | "3";
+export const TERM_KEYS: TermKey[] = ["1", "2", "3"];
+
+export type OfficialTimes = {
+  amArrival?: string;
+  amDeparture?: string;
+  pmArrival?: string;
+  pmDeparture?: string;
+};
+
 export type Employee = {
   empNo: string;
   name: string;
@@ -5,7 +15,66 @@ export type Employee = {
   officialAmDeparture?: string;
   officialPmArrival?: string;
   officialPmDeparture?: string;
+  /** Per-term official times. Term "1" defaults to legacy official* fields. */
+  terms?: Partial<Record<TermKey, OfficialTimes>>;
 };
+
+/** Returns an Employee whose official* fields are the times for the selected term. */
+export function effectiveEmployee(emp: Employee, term: TermKey): Employee {
+  const t = emp.terms?.[term];
+  if (t) {
+    return {
+      ...emp,
+      officialAmArrival: t.amArrival || undefined,
+      officialAmDeparture: t.amDeparture || undefined,
+      officialPmArrival: t.pmArrival || undefined,
+      officialPmDeparture: t.pmDeparture || undefined,
+    };
+  }
+  // No term data yet: term 1 falls back to legacy fields; terms 2/3 start empty.
+  if (term === "1") return emp;
+  return {
+    ...emp,
+    officialAmArrival: undefined,
+    officialAmDeparture: undefined,
+    officialPmArrival: undefined,
+    officialPmDeparture: undefined,
+  };
+}
+
+/** Read the times used for a given term (falls back to legacy fields for term 1). */
+export function getTermTimes(emp: Employee, term: TermKey): OfficialTimes {
+  const t = emp.terms?.[term];
+  if (t) return { ...t };
+  if (term === "1") {
+    return {
+      amArrival: emp.officialAmArrival,
+      amDeparture: emp.officialAmDeparture,
+      pmArrival: emp.officialPmArrival,
+      pmDeparture: emp.officialPmDeparture,
+    };
+  }
+  return {};
+}
+
+/** Write times for a term. Also mirrors term "1" into legacy official* fields. */
+export function setTermTimes(emp: Employee, term: TermKey, times: OfficialTimes): Employee {
+  const clean: OfficialTimes = {
+    amArrival: times.amArrival || undefined,
+    amDeparture: times.amDeparture || undefined,
+    pmArrival: times.pmArrival || undefined,
+    pmDeparture: times.pmDeparture || undefined,
+  };
+  const nextTerms = { ...(emp.terms || {}), [term]: clean };
+  const out: Employee = { ...emp, terms: nextTerms };
+  if (term === "1") {
+    out.officialAmArrival = clean.amArrival;
+    out.officialAmDeparture = clean.amDeparture;
+    out.officialPmArrival = clean.pmArrival;
+    out.officialPmDeparture = clean.pmDeparture;
+  }
+  return out;
+}
 
 /** How official times map onto the DTR AM/PM columns. */
 export type ShiftType = "am" | "hybrid" | "pm" | "full" | "custom";
