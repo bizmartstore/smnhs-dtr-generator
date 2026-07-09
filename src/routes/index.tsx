@@ -27,6 +27,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import html2canvas from "html2canvas";
@@ -506,6 +507,9 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit employee</DialogTitle>
+          <DialogDescription>
+            Update employee number, name, and official times for each term.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
@@ -1120,6 +1124,9 @@ function PrintSetupButton() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Print Setup</DialogTitle>
+            <DialogDescription>
+              Configure default page orientation, margins, and scale for printing.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 text-sm">
             <p className="text-muted-foreground">
