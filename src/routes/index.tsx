@@ -1124,6 +1124,9 @@ function PrintSetupButton() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Print Setup</DialogTitle>
+            <DialogDescription>
+              Configure default page orientation, margins, and scale for printing.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 text-sm">
             <p className="text-muted-foreground">
