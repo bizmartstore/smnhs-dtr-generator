@@ -260,10 +260,35 @@ export async function fetchOverrides(biometricId: string): Promise<DayOverrides>
 
 // ---- Mutations ----
 export async function upsertEmployee(biometricId: string, e: Employee) {
+  const row = empToRow(biometricId, e);
   const { error } = await supabase
     .from("dtr_employees")
-    .upsert(empToRow(biometricId, e), { onConflict: "biometric_id,emp_no" });
-  if (error) throw error;
+    .upsert(row, { onConflict: "biometric_id,emp_no" });
+  if (!error) return;
+  // Fallback: the `terms` column may not exist yet (migration not applied).
+  // Retry without it so base official times still save.
+  const msg = (error as { message?: string })?.message ?? "";
+  const code = (error as { code?: string })?.code ?? "";
+  const looksMissingTerms =
+    /terms/i.test(msg) ||
+    code === "PGRST204" ||
+    code === "42703" ||
+    /column .* does not exist/i.test(msg);
+  if (looksMissingTerms) {
+    const { terms: _omit, ...rest } = row;
+    void _omit;
+    const retry = await supabase
+      .from("dtr_employees")
+      .upsert(rest, { onConflict: "biometric_id,emp_no" });
+    if (!retry.error) {
+      console.warn(
+        "[upsertEmployee] Saved without `terms` — run SUPABASE_MIGRATION_TERMS.sql to enable 3-term storage.",
+      );
+      return;
+    }
+    throw retry.error;
+  }
+  throw error;
 }
 export async function deleteEmployee(biometricId: string, empNo: string) {
   const { error } = await supabase
