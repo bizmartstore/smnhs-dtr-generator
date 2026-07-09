@@ -507,6 +507,9 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit employee</DialogTitle>
+          <DialogDescription>
+            Update employee number, name, and official times for each term.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
