@@ -44,7 +44,7 @@ const LS_TERM = "dtr:activeTerm";
 function loadActiveTerm(): TermKey {
   if (typeof localStorage === "undefined") return "1";
   const v = localStorage.getItem(LS_TERM);
-  return v === "2" || v === "3" ? v : "1";
+  return v === "2" || v === "3" || v === "old" ? v : "1";
 }
 
 const DEFAULT: Store = {
