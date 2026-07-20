@@ -496,7 +496,8 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
   };
   const copyFrom = (source: TermKey) => {
     setDraft((d) => setTermTimes(d, term, getTermTimes(d, source)));
-    toast.success(`Copied Term ${source} times into Term ${term}`);
+    const lbl = (k: TermKey) => (k === "old" ? "Old" : `Term ${k}`);
+    toast.success(`Copied ${lbl(source)} times into ${lbl(term)}`);
   };
 
   return (
