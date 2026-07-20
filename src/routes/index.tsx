@@ -561,7 +561,7 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Set the official times for <strong>Term {term}</strong>. Switch
+              Set the official times for <strong>{term === "old" ? "Old term" : `Term ${term}`}</strong>. Switch
               tabs to edit other terms. The DTR uses the term currently selected
               in the header.
             </p>
