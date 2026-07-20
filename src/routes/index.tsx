@@ -427,7 +427,7 @@ function EmployeesPanel() {
                     </div>
                     <div className="text-muted-foreground text-xs">
                       <span className="uppercase mr-1 text-[10px] tracking-wide text-foreground/70">
-                        T{store.state.activeTerm}
+                        {store.state.activeTerm === "old" ? "OLD" : `T${store.state.activeTerm}`}
                       </span>
                       {eff.officialAmArrival || "—"} / {eff.officialAmDeparture || "—"}
                       {" · "}
