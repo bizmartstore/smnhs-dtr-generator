@@ -427,7 +427,7 @@ function EmployeesPanel() {
                     </div>
                     <div className="text-muted-foreground text-xs">
                       <span className="uppercase mr-1 text-[10px] tracking-wide text-foreground/70">
-                        T{store.state.activeTerm}
+                        {store.state.activeTerm === "old" ? "OLD" : `T${store.state.activeTerm}`}
                       </span>
                       {eff.officialAmArrival || "—"} / {eff.officialAmDeparture || "—"}
                       {" · "}
@@ -496,7 +496,8 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
   };
   const copyFrom = (source: TermKey) => {
     setDraft((d) => setTermTimes(d, term, getTermTimes(d, source)));
-    toast.success(`Copied Term ${source} times into Term ${term}`);
+    const lbl = (k: TermKey) => (k === "old" ? "Old" : `Term ${k}`);
+    toast.success(`Copied ${lbl(source)} times into ${lbl(term)}`);
   };
 
   return (
@@ -540,7 +541,7 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
                     className="h-7 px-2 text-xs"
                     onClick={() => setTerm(t)}
                   >
-                    {t}
+                    {t === "old" ? "Old" : t}
                   </Button>
                 ))}
               </div>
@@ -554,13 +555,13 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
                     className="h-7 text-xs"
                     onClick={() => copyFrom(t)}
                   >
-                    Copy from T{t}
+                    Copy from {t === "old" ? "Old" : `T${t}`}
                   </Button>
                 ))}
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Set the official times for <strong>Term {term}</strong>. Switch
+              Set the official times for <strong>{term === "old" ? "Old term" : `Term ${term}`}</strong>. Switch
               tabs to edit other terms. The DTR uses the term currently selected
               in the header.
             </p>

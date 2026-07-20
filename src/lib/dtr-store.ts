@@ -44,7 +44,7 @@ const LS_TERM = "dtr:activeTerm";
 function loadActiveTerm(): TermKey {
   if (typeof localStorage === "undefined") return "1";
   const v = localStorage.getItem(LS_TERM);
-  return v === "2" || v === "3" ? v : "1";
+  return v === "2" || v === "3" || v === "old" ? v : "1";
 }
 
 const DEFAULT: Store = {
@@ -138,10 +138,27 @@ async function bootstrap() {
 
     subscribeRealtime();
     subscribeVisibilitySync();
+    startKeepAlivePing();
   } catch (err) {
     console.error("[dtr-store] bootstrap failed", err);
     setState({ ready: true });
-  }
+}
+
+// Keep the Supabase project warm: lightweight query every 4 minutes so the
+// hosted instance doesn't idle-pause between usage sessions.
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+function startKeepAlivePing() {
+  if (keepAliveTimer || typeof window === "undefined") return;
+  const ping = async () => {
+    try {
+      await supabase.from("dtr_settings").select("key").limit(1);
+    } catch (e) {
+      console.warn("[keepalive] ping failed", e);
+    }
+  };
+  void ping();
+  keepAliveTimer = setInterval(ping, 4 * 60 * 1000);
+}
 }
 
 async function loadBiometric(id: string, showStaleFirst = true) {

@@ -1,5 +1,6 @@
-export type TermKey = "1" | "2" | "3";
-export const TERM_KEYS: TermKey[] = ["1", "2", "3"];
+export type TermKey = "1" | "2" | "3" | "old";
+export const TERM_KEYS: TermKey[] = ["1", "2", "3", "old"];
+export const TERM_LABELS: Record<TermKey, string> = { "1": "T1", "2": "T2", "3": "T3", old: "Old" };
 
 export type OfficialTimes = {
   amArrival?: string;
