@@ -138,6 +138,7 @@ async function bootstrap() {
 
     subscribeRealtime();
     subscribeVisibilitySync();
+    startKeepAlivePing();
   } catch (err) {
     console.error("[dtr-store] bootstrap failed", err);
     setState({ ready: true });
