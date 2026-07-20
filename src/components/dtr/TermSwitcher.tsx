@@ -19,7 +19,7 @@ export function TermSwitcher() {
           onClick={() => store.setActiveTerm(t)}
           title={`Use Term ${t} official times`}
         >
-          {t}
+          {t === "old" ? "Old" : t}
         </Button>
       ))}
     </div>
