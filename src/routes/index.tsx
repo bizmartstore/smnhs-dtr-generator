@@ -540,7 +540,7 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
                     className="h-7 px-2 text-xs"
                     onClick={() => setTerm(t)}
                   >
-                    {t}
+                    {t === "old" ? "Old" : t}
                   </Button>
                 ))}
               </div>
@@ -554,7 +554,7 @@ function EditEmployeeButton({ employee }: { employee: Employee }) {
                     className="h-7 text-xs"
                     onClick={() => copyFrom(t)}
                   >
-                    Copy from T{t}
+                    Copy from {t === "old" ? "Old" : `T${t}`}
                   </Button>
                 ))}
               </div>
