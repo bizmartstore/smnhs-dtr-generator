@@ -274,7 +274,7 @@ async function refreshCurrentEmployees() {
   if (empTimer) clearTimeout(empTimer);
   empTimer = setTimeout(async () => {
     const id = state.currentBiometricId;
-    const employees = await P.fetchEmployees(id);
+    const employees = mergeLocalTerms(await P.fetchEmployees(id), state.employees);
     if (state.currentBiometricId !== id) return;
     setState({ employees });
     const cached = await cacheService.readSnapshot(id);
