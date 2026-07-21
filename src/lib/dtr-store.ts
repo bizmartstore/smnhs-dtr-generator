@@ -65,6 +65,8 @@ let state: Store = DEFAULT;
 let bootstrapped = false;
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let syncSchemaReady = false;
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+let visibilitySyncSubscribed = false;
 
 function notify() {
   listeners.forEach((l) => l());
@@ -72,6 +74,36 @@ function notify() {
 function setState(patch: Partial<Store>) {
   state = { ...state, ...patch };
   notify();
+}
+
+function hasTermData(emp?: Employee) {
+  return !!emp?.terms && Object.keys(emp.terms).length > 0;
+}
+
+function mergeLocalTerms(remote: Employee[], local: Employee[]) {
+  const localByEmpNo = new Map(local.map((emp) => [emp.empNo, emp]));
+  return remote.map((emp) => {
+    if (hasTermData(emp)) return emp;
+    const localEmp = localByEmpNo.get(emp.empNo);
+    if (!hasTermData(localEmp)) return emp;
+    return { ...emp, terms: localEmp!.terms };
+  });
+}
+
+async function writeSnapshotCache(
+  biometricId: string,
+  employees: Employee[],
+  logs: RawLog[],
+  overrides: DayOverrides,
+) {
+  const cached = await cacheService.readSnapshot(biometricId);
+  await cacheService.writeSnapshot(biometricId, {
+    employees,
+    logs,
+    overrides,
+    maxLogId: cached?.maxLogId,
+    logsRev: cached?.logsRev,
+  });
 }
 
 function persistCurrent(id: string) {
