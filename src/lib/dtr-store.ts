@@ -207,7 +207,15 @@ async function loadBiometric(id: string, showStaleFirst = true) {
   try {
     const snap = await attendanceRepository.refreshFromSupabase(id);
     if (state.currentBiometricId !== id) return; // user switched away
-    setState({ employees: snap.employees, logs: snap.logs, overrides: snap.overrides });
+    const employees = mergeLocalTerms(snap.employees, state.employees);
+    setState({ employees, logs: snap.logs, overrides: snap.overrides });
+    await cacheService.writeSnapshot(id, {
+      employees,
+      logs: snap.logs,
+      overrides: snap.overrides,
+      maxLogId: snap.maxLogId,
+      logsRev: snap.logsRev,
+    });
   } catch (e) {
     console.error("[loadBiometric] refresh failed", e);
   }
