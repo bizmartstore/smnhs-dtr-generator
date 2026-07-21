@@ -428,6 +428,7 @@ export function useDtrStore() {
         }
       }
       setState({ employees: nextEmployees, logs: nextLogs, overrides: nextOverrides });
+      await writeSnapshotCache(biometricId, nextEmployees, nextLogs, nextOverrides);
 
       try {
         if (renaming) {
