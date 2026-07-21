@@ -65,6 +65,8 @@ let state: Store = DEFAULT;
 let bootstrapped = false;
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let syncSchemaReady = false;
+let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+let visibilitySyncSubscribed = false;
 
 function notify() {
   listeners.forEach((l) => l());
@@ -74,12 +76,55 @@ function setState(patch: Partial<Store>) {
   notify();
 }
 
+function hasTermData(emp?: Employee) {
+  return !!emp?.terms && Object.keys(emp.terms).length > 0;
+}
+
+function mergeLocalTerms(remote: Employee[], local: Employee[]) {
+  const localByEmpNo = new Map(local.map((emp) => [emp.empNo, emp]));
+  return remote.map((emp) => {
+    if (hasTermData(emp)) return emp;
+    const localEmp = localByEmpNo.get(emp.empNo);
+    if (!hasTermData(localEmp)) return emp;
+    return { ...emp, terms: localEmp!.terms };
+  });
+}
+
+async function writeSnapshotCache(
+  biometricId: string,
+  employees: Employee[],
+  logs: RawLog[],
+  overrides: DayOverrides,
+) {
+  const cached = await cacheService.readSnapshot(biometricId);
+  await cacheService.writeSnapshot(biometricId, {
+    employees,
+    logs,
+    overrides,
+    maxLogId: cached?.maxLogId,
+    logsRev: cached?.logsRev,
+  });
+}
+
 function persistCurrent(id: string) {
   try {
     localStorage.setItem(LS_CURRENT, id);
   } catch {
     /* ignore */
   }
+}
+
+function startKeepAlivePing() {
+  if (keepAliveTimer || typeof window === "undefined") return;
+  const ping = async () => {
+    try {
+      await supabase.from("dtr_settings").select("id").limit(1);
+    } catch (e) {
+      console.warn("[keepalive] ping failed", e);
+    }
+  };
+  void ping();
+  keepAliveTimer = setInterval(ping, 4 * 60 * 1000);
 }
 
 // ---------- bootstrap ----------
@@ -145,22 +190,6 @@ async function bootstrap() {
   }
 }
 
-// Keep the Supabase project warm: lightweight query every 4 minutes so the
-// hosted instance doesn't idle-pause between usage sessions.
-let keepAliveTimer: ReturnType<typeof setInterval> | null = null;
-function startKeepAlivePing() {
-  if (keepAliveTimer || typeof window === "undefined") return;
-  const ping = async () => {
-    try {
-      await supabase.from("dtr_settings").select("id").limit(1);
-    } catch (e) {
-      console.warn("[keepalive] ping failed", e);
-    }
-  };
-  void ping();
-  keepAliveTimer = setInterval(ping, 4 * 60 * 1000);
-}
-
 async function loadBiometric(id: string, showStaleFirst = true) {
   if (showStaleFirst) {
     const cached = await attendanceRepository.readCached(id);
@@ -178,7 +207,15 @@ async function loadBiometric(id: string, showStaleFirst = true) {
   try {
     const snap = await attendanceRepository.refreshFromSupabase(id);
     if (state.currentBiometricId !== id) return; // user switched away
-    setState({ employees: snap.employees, logs: snap.logs, overrides: snap.overrides });
+    const employees = mergeLocalTerms(snap.employees, state.employees);
+    setState({ employees, logs: snap.logs, overrides: snap.overrides });
+    await cacheService.writeSnapshot(id, {
+      employees,
+      logs: snap.logs,
+      overrides: snap.overrides,
+      maxLogId: snap.maxLogId,
+      logsRev: snap.logsRev,
+    });
   } catch (e) {
     console.error("[loadBiometric] refresh failed", e);
   }
@@ -237,7 +274,7 @@ async function refreshCurrentEmployees() {
   if (empTimer) clearTimeout(empTimer);
   empTimer = setTimeout(async () => {
     const id = state.currentBiometricId;
-    const employees = await P.fetchEmployees(id);
+    const employees = mergeLocalTerms(await P.fetchEmployees(id), state.employees);
     if (state.currentBiometricId !== id) return;
     setState({ employees });
     const cached = await cacheService.readSnapshot(id);
@@ -269,7 +306,8 @@ async function syncCurrentLogsIncremental() {
 }
 
 function subscribeVisibilitySync() {
-  if (typeof document === "undefined") return;
+  if (typeof document === "undefined" || visibilitySyncSubscribed) return;
+  visibilitySyncSubscribed = true;
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && state.ready && !state.schemaError) {
       void syncCurrentLogsIncremental();
@@ -390,6 +428,7 @@ export function useDtrStore() {
         }
       }
       setState({ employees: nextEmployees, logs: nextLogs, overrides: nextOverrides });
+      await writeSnapshotCache(biometricId, nextEmployees, nextLogs, nextOverrides);
 
       try {
         if (renaming) {
