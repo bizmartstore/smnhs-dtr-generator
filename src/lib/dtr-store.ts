@@ -306,7 +306,8 @@ async function syncCurrentLogsIncremental() {
 }
 
 function subscribeVisibilitySync() {
-  if (typeof document === "undefined") return;
+  if (typeof document === "undefined" || visibilitySyncSubscribed) return;
+  visibilitySyncSubscribed = true;
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && state.ready && !state.schemaError) {
       void syncCurrentLogsIncremental();
