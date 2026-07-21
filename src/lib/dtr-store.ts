@@ -142,6 +142,7 @@ async function bootstrap() {
   } catch (err) {
     console.error("[dtr-store] bootstrap failed", err);
     setState({ ready: true });
+  }
 }
 
 // Keep the Supabase project warm: lightweight query every 4 minutes so the
@@ -151,14 +152,13 @@ function startKeepAlivePing() {
   if (keepAliveTimer || typeof window === "undefined") return;
   const ping = async () => {
     try {
-      await supabase.from("dtr_settings").select("key").limit(1);
+      await supabase.from("dtr_settings").select("id").limit(1);
     } catch (e) {
       console.warn("[keepalive] ping failed", e);
     }
   };
   void ping();
   keepAliveTimer = setInterval(ping, 4 * 60 * 1000);
-}
 }
 
 async function loadBiometric(id: string, showStaleFirst = true) {
