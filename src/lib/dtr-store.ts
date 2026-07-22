@@ -517,6 +517,64 @@ export function useDtrStore() {
         console.error("[setOverride]", e);
       }
     },
+
+    /**
+     * Edit a single time cell: saves an override AND rewrites the underlying
+     * raw log so the change is permanent across both storage tables.
+     */
+    async editTimeCell(
+      empNo: string,
+      date: string,
+      field: keyof DayRecord,
+      oldValue: string,
+      newValue: string,
+    ) {
+      const cleanOld = (oldValue || "").trim();
+      const cleanNew = (newValue || "").trim();
+
+      // 1) Override (instant reflection in the DTR).
+      const key = `${empNo}|${date}`;
+      const existing = state.overrides[key] || {};
+      const nextOv = { ...existing, [field]: cleanNew };
+      const nextOverrides = { ...state.overrides, [key]: nextOv };
+
+      // 2) Raw logs — update matching entry if present, else insert/delete.
+      let nextLogs = state.logs;
+      if (cleanOld !== cleanNew) {
+        const idx = state.logs.findIndex(
+          (l) => l.empNo === empNo && l.date === date && l.time === cleanOld,
+        );
+        if (idx >= 0) {
+          if (cleanNew) {
+            nextLogs = state.logs.map((l, i) =>
+              i === idx ? { ...l, time: cleanNew } : l,
+            );
+          } else {
+            nextLogs = state.logs.filter((_, i) => i !== idx);
+          }
+        } else if (cleanNew) {
+          // No existing raw log for oldValue — treat as an insert.
+          const dup = state.logs.some(
+            (l) => l.empNo === empNo && l.date === date && l.time === cleanNew,
+          );
+          if (!dup) nextLogs = [...state.logs, { empNo, date, time: cleanNew }];
+        }
+      }
+
+      setState({ overrides: nextOverrides, logs: nextLogs });
+      await writeSnapshotCache(biometricId, state.employees, nextLogs, nextOverrides);
+
+      try {
+        await P.setOverrideRow(biometricId, empNo, date, nextOv);
+      } catch (e) {
+        console.error("[editTimeCell.setOverride]", e);
+      }
+      try {
+        await P.updateLogTime(biometricId, empNo, date, cleanOld, cleanNew);
+      } catch (e) {
+        console.error("[editTimeCell.updateLogTime]", e);
+      }
+    },
     async clearOverrides(empNo?: string) {
       if (!empNo) {
         setState({ overrides: {} });

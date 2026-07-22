@@ -339,6 +339,65 @@ export async function setOverrideRow(
   if (error) throw error;
 }
 
+/**
+ * Update a single raw log entry's time (or insert/delete when appropriate).
+ * Uniqueness key: (biometric_id, emp_no, log_date, log_time).
+ */
+export async function updateLogTime(
+  biometricId: string,
+  empNo: string,
+  date: string,
+  oldTime: string,
+  newTime: string,
+) {
+  if (oldTime === newTime) return;
+  const withSeconds = (t: string) => (t.length === 5 ? `${t}:00` : t);
+
+  if (oldTime && newTime) {
+    // Try update in place. On unique conflict (newTime already exists for
+    // this day), fall back to delete-old (keeps existing new).
+    const upd = await supabase
+      .from("dtr_logs")
+      .update({ log_time: withSeconds(newTime) })
+      .eq("biometric_id", biometricId)
+      .eq("emp_no", empNo)
+      .eq("log_date", date)
+      .eq("log_time", withSeconds(oldTime));
+    if (upd.error) {
+      await supabase
+        .from("dtr_logs")
+        .delete()
+        .eq("biometric_id", biometricId)
+        .eq("emp_no", empNo)
+        .eq("log_date", date)
+        .eq("log_time", withSeconds(oldTime));
+    }
+    return;
+  }
+  if (oldTime && !newTime) {
+    const { error } = await supabase
+      .from("dtr_logs")
+      .delete()
+      .eq("biometric_id", biometricId)
+      .eq("emp_no", empNo)
+      .eq("log_date", date)
+      .eq("log_time", withSeconds(oldTime));
+    if (error) throw error;
+    return;
+  }
+  if (!oldTime && newTime) {
+    const { error } = await supabase
+      .from("dtr_logs")
+      .insert({
+        biometric_id: biometricId,
+        emp_no: empNo,
+        log_date: date,
+        log_time: withSeconds(newTime),
+      });
+    if (error && !/duplicate|unique/i.test(error.message)) throw error;
+  }
+}
+
 export async function clearOverridesFor(biometricId: string, empNo?: string) {
   let q = supabase.from("dtr_overrides").delete().eq("biometric_id", biometricId);
   if (empNo) q = q.eq("emp_no", empNo);
