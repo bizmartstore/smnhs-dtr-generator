@@ -284,6 +284,19 @@
   padding: 0;
   color: black;
 }
+.dtr-cell-btn {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  text-align: center;
+  padding: 0;
+  color: black;
+  cursor: pointer;
+}
+.dtr-cell-btn:hover { background: rgba(59, 130, 246, 0.12); }
+.dtr-cell-placeholder { color: #9ca3af; }
 .dtr-ut { font-family: Arial, sans-serif; font-size: 7pt; }
 .dtr-total-label {
   text-align: right !important;
