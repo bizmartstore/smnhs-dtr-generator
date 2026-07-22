@@ -991,8 +991,8 @@ function DtrPanel({
                 records={records}
                 verifiedBy={store.state.verifiedBy}
                 editable
-                onEdit={(date, field, value) =>
-                  store.setOverride(emp.empNo, date, field, value)
+                onEditTime={(date, field, oldValue, newValue) =>
+                  store.editTimeCell(emp.empNo, date, field, oldValue, newValue)
                 }
               />
               <DtrSheet
