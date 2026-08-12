@@ -62,15 +62,48 @@ export function ovKey(empNo: string, day: string) {
   return `${empNo}|${day}`;
 }
 
-/** Returns false when the biometrics migration has not been applied yet. */
+/** True when an error means "relation/column missing" (real migration gap). */
+function isMissingSchemaError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  const code = e?.code ?? "";
+  const msg = e?.message ?? "";
+  return (
+    code === "42P01" || // undefined_table
+    code === "42703" || // undefined_column
+    code === "PGRST204" ||
+    code === "PGRST205" ||
+    /does not exist|schema cache/i.test(msg)
+  );
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Returns false ONLY when the migration is genuinely missing.
+ * Transient failures (cold start, offline, timeout) are retried and then
+ * treated as "ready" so the app keeps working from cache.
+ */
 export async function isBiometricsSchemaReady(): Promise<boolean> {
-  const { error } = await supabase.from("dtr_biometrics").select("id").limit(1);
-  if (error) return false;
-  const { error: colErr } = await supabase
-    .from("dtr_employees")
-    .select("biometric_id")
-    .limit(1);
-  return !colErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await supabase.from("dtr_biometrics").select("id").limit(1);
+    if (error) {
+      if (isMissingSchemaError(error)) return false;
+      await sleep(600 * (attempt + 1));
+      continue;
+    }
+    const { error: colErr } = await supabase
+      .from("dtr_employees")
+      .select("biometric_id")
+      .limit(1);
+    if (colErr) {
+      if (isMissingSchemaError(colErr)) return false;
+      await sleep(600 * (attempt + 1));
+      continue;
+    }
+    return true;
+  }
+  console.warn("[isBiometricsSchemaReady] transient failures — assuming schema is ready");
+  return true;
 }
 
 /** Sync-counter table (run SUPABASE_MIGRATION_SYNC.sql). */
@@ -78,6 +111,7 @@ export async function isSyncSchemaReady(): Promise<boolean> {
   const { error } = await supabase.from("dtr_sync_counters").select("biometric_id").limit(1);
   return !error;
 }
+
 
 export async function fetchLogsRev(biometricId: string): Promise<number> {
   const { data, error } = await supabase
