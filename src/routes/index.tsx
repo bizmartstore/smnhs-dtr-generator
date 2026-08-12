@@ -791,6 +791,23 @@ function DtrPanel({
   setSelectedEmp: (e: string) => void;
 }) {
   const store = useDtrStore();
+  const [extraYears, setExtraYears] = useState<number[]>(() => {
+    if (typeof localStorage === "undefined") return [];
+    try {
+      const raw = JSON.parse(localStorage.getItem("dtr:extraYears") || "[]");
+      return Array.isArray(raw) ? raw.filter((y) => typeof y === "number") : [];
+    } catch {
+      return [];
+    }
+  });
+  const addYear = (y: number) => {
+    setExtraYears((prev) => {
+      const next = Array.from(new Set([...prev, y])).sort();
+      try { localStorage.setItem("dtr:extraYears", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+    setYear(y);
+  };
   const years = useMemo(() => {
     const set = new Set<number>();
     for (const l of store.state.logs) {
@@ -799,8 +816,10 @@ function DtrPanel({
     }
     set.add(new Date().getFullYear());
     set.add(year);
+    for (const y of extraYears) set.add(y);
     return Array.from(set).sort();
-  }, [store.state.logs, year]);
+  }, [store.state.logs, year, extraYears]);
+
 
   const rawEmp = store.state.employees.find((e) => e.empNo === selectedEmp);
   const emp = rawEmp ? effectiveEmployee(rawEmp, store.state.activeTerm) : undefined;
