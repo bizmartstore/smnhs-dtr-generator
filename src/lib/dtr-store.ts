@@ -117,20 +117,32 @@ function persistCurrent(id: string) {
 function startKeepAlivePing() {
   if (keepAliveTimer || typeof window === "undefined") return;
   const ping = async () => {
+    // 1) Keep the database warm (direct REST hit).
     try {
       await supabase.from("dtr_settings").select("id").limit(1);
     } catch (e) {
-      console.warn("[keepalive] ping failed", e);
+      console.warn("[keepalive] db ping failed", e);
+    }
+    // 2) Keep the edge worker warm (same-origin request).
+    try {
+      await fetch("/api/public/keepalive", { cache: "no-store" });
+    } catch (e) {
+      console.warn("[keepalive] worker ping failed", e);
     }
   };
   void ping();
   keepAliveTimer = setInterval(ping, 4 * 60 * 1000);
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void ping();
+  });
 }
 
 // ---------- bootstrap ----------
 async function bootstrap() {
   if (bootstrapped) return;
   bootstrapped = true;
+
+  startKeepAlivePing();
 
   try {
     const schemaReady = await P.isBiometricsSchemaReady();
@@ -142,6 +154,7 @@ async function bootstrap() {
       });
       return;
     }
+
 
     // Catalog + global settings
     const [biometrics, verifiedBy] = await Promise.all([
