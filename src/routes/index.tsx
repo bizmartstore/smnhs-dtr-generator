@@ -866,6 +866,19 @@ function DtrPanel({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              await store.refreshFromServer();
+              toast.success("Synced latest data from the server");
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh data
+          </Button>
+        </div>
         <div className="grid gap-3 sm:grid-cols-4">
           <div>
             <Label>Year</Label>
