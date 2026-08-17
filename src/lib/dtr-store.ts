@@ -371,6 +371,12 @@ export function useDtrStore() {
     state,
 
     // ---- Biometrics ----
+    /** Force a full re-read from Supabase, ignoring the local cache. */
+    async refreshFromServer() {
+      const id = state.currentBiometricId;
+      await cacheService.clear(id);
+      await loadBiometric(id, false);
+    },
     async setCurrentBiometric(id: string) {
       if (id === state.currentBiometricId) return;
       persistCurrent(id);
