@@ -321,12 +321,19 @@ async function syncCurrentLogsIncremental() {
 function subscribeVisibilitySync() {
   if (typeof document === "undefined" || visibilitySyncSubscribed) return;
   visibilitySyncSubscribed = true;
+  const resync = () => {
+    if (!state.ready || state.schemaError) return;
+    void syncCurrentLogsIncremental();
+    void refreshCurrentOverrides();
+    void refreshCurrentEmployees();
+  };
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && state.ready && !state.schemaError) {
-      void syncCurrentLogsIncremental();
-    }
+    if (document.visibilityState === "visible") resync();
   });
+  window.addEventListener("focus", resync);
+  window.addEventListener("online", resync);
 }
+
 async function refreshCurrentOverrides() {
   if (ovTimer) clearTimeout(ovTimer);
   ovTimer = setTimeout(async () => {
