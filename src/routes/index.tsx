@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { Trash2, Printer, FileDown, Pencil, Search, ArrowUpDown, Settings2 } from "lucide-react";
+import { Trash2, Printer, FileDown, Pencil, Search, ArrowUpDown, Settings2, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
