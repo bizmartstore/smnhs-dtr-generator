@@ -62,6 +62,13 @@ export const Route = createFileRoute("/")({
         content:
           "Generate Daily Time Records from raw biometric logs. Print 3 DTRs per A4 landscape page.",
       },
+      { property: "og:title", content: "DTR Generator — Civil Service Form No. 48" },
+      {
+        property: "og:description",
+        content: "Generate Daily Time Records from raw biometric logs and print three per A4 landscape page.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Index,

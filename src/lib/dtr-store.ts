@@ -164,7 +164,7 @@ async function bootstrap() {
     if (!schemaReady) {
       setState({
         schemaError:
-          "Database setup incomplete. In the Supabase SQL Editor, run SUPABASE_MIGRATION_BIOMETRICS.sql and SUPABASE_MIGRATION_SYNC.sql (in this project), then refresh this page.",
+          "Database setup incomplete. In the Supabase SQL Editor, run SUPABASE_MIGRATION_BIOMETRICS.sql, SUPABASE_MIGRATION_TERMS.sql, and SUPABASE_MIGRATION_SYNC.sql (in this project), then refresh this page.",
         ready: true,
       });
       return;
@@ -243,7 +243,8 @@ async function loadBiometric(id: string, showStaleFirst = true) {
   try {
     const snap = await attendanceRepository.refreshFromSupabase(id);
     if (state.currentBiometricId !== id) return; // user switched away
-    const employees = mergeLocalTerms(snap.employees, state.employees);
+    const localEmployees = state.employees;
+    const employees = mergeLocalTerms(snap.employees, localEmployees);
     setState({ employees, logs: snap.logs, overrides: snap.overrides });
     await cacheService.writeSnapshot(id, {
       employees,
@@ -252,6 +253,21 @@ async function loadBiometric(id: string, showStaleFirst = true) {
       maxLogId: snap.maxLogId,
       logsRev: snap.logsRev,
     });
+
+    // Recover term values that survived in this device's IndexedDB cache
+    // after older code silently saved only the legacy official-time columns.
+    const remoteByEmpNo = new Map(snap.employees.map((employee) => [employee.empNo, employee]));
+    const recoverable = employees.filter((employee) => {
+      const remote = remoteByEmpNo.get(employee.empNo);
+      return hasTermData(employee) && !hasTermData(remote);
+    });
+    await Promise.all(
+      recoverable.map((employee) =>
+        P.upsertEmployee(id, employee).catch((error) => {
+          console.error("[loadBiometric] failed to recover cached term times", error);
+        }),
+      ),
+    );
   } catch (e) {
     console.error("[loadBiometric] refresh failed", e);
   }
