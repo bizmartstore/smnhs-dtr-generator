@@ -102,6 +102,13 @@ export type RawLog = {
   time: string; // HH:MM (24h)
 };
 
+/** Keep employee/log joins stable across imports such as 1, 01, and 001. */
+export function normalizeEmployeeNumber(value: string): string {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return trimmed;
+  return trimmed.replace(/^0+(?=\d)/, "");
+}
+
 // Per-day record after parsing/pairing. Each field is "HH:MM" or "".
 export type DayRecord = {
   amArrival: string;
@@ -172,7 +179,7 @@ export function parseRawLogs(text: string): RawLog[] {
       // Find empNo as last token before this date that isn't itself a date/time
       const prefix = line.slice(startIdx, dates[i].idx);
       const tokens = prefix.split(/[\s,;|]+/).filter(Boolean);
-      const empNo = tokens.length ? tokens[tokens.length - 1] : "";
+      const empNo = normalizeEmployeeNumber(tokens.length ? tokens[tokens.length - 1] : "");
       if (!empNo || !/^\d+$/.test(empNo)) continue;
       logs.push({ empNo, date: dates[i].date, time: times[i].time });
     }

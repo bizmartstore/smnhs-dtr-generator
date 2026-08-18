@@ -1,7 +1,10 @@
 -- Adds multi-term official time support to dtr_employees (Term 1, 2, 3, and Old).
 -- Safe to re-run. Existing official_* columns are preserved and backfilled into term "1".
 alter table public.dtr_employees
-  add column if not exists terms jsonb;
+  add column if not exists terms jsonb not null default '{}'::jsonb;
+
+alter table public.dtr_employees
+  alter column terms set default '{}'::jsonb;
 
 update public.dtr_employees
    set terms = jsonb_build_object(
@@ -13,6 +16,9 @@ update public.dtr_employees
          )
        )
  where terms is null;
+
+alter table public.dtr_employees
+  alter column terms set not null;
 
 -- Refresh Supabase/PostgREST schema cache so the app can save the `terms` column immediately.
 notify pgrst, 'reload schema';
