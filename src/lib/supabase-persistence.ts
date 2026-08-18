@@ -1,7 +1,13 @@
 // Supabase persistence layer for DTR entities.
 // All reads/writes are scoped to a biometric_id.
 import { supabase } from "./supabase";
-import type { Employee, RawLog, DayOverrides, DayRecord } from "./dtr";
+import {
+  normalizeEmployeeNumber,
+  type Employee,
+  type RawLog,
+  type DayOverrides,
+  type DayRecord,
+} from "./dtr";
 
 // ---- Row types ----
 export type EmpRow = {
@@ -34,7 +40,7 @@ export type BiometricRow = { id: string; name: string; created_at?: string };
 
 export function empFromRow(r: EmpRow): Employee {
   return {
-    empNo: r.emp_no,
+    empNo: normalizeEmployeeNumber(r.emp_no),
     name: r.name ?? "",
     officialAmArrival: r.official_am_arrival ?? undefined,
     officialAmDeparture: r.official_am_departure ?? undefined,
@@ -46,7 +52,7 @@ export function empFromRow(r: EmpRow): Employee {
 export function empToRow(biometricId: string, e: Employee): EmpRow {
   return {
     biometric_id: biometricId,
-    emp_no: e.empNo,
+    emp_no: normalizeEmployeeNumber(e.empNo),
     name: e.name ?? "",
     official_am_arrival: e.officialAmArrival ?? null,
     official_am_departure: e.officialAmDeparture ?? null,
@@ -56,7 +62,11 @@ export function empToRow(biometricId: string, e: Employee): EmpRow {
   };
 }
 export function logFromRow(r: LogRow): RawLog {
-  return { empNo: r.emp_no, date: r.log_date, time: r.log_time };
+  return {
+    empNo: normalizeEmployeeNumber(r.emp_no),
+    date: r.log_date,
+    time: r.log_time.slice(0, 5),
+  };
 }
 export function ovKey(empNo: string, day: string) {
   return `${empNo}|${day}`;
@@ -93,7 +103,7 @@ export async function isBiometricsSchemaReady(): Promise<boolean> {
     }
     const { error: colErr } = await supabase
       .from("dtr_employees")
-      .select("biometric_id")
+      .select("biometric_id,terms")
       .limit(1);
     if (colErr) {
       if (isMissingSchemaError(colErr)) return false;
@@ -191,6 +201,37 @@ export async function fetchBiometrics(): Promise<BiometricRow[]> {
     return [];
   }
   return (data ?? []) as BiometricRow[];
+}
+
+export type BiometricDataCount = {
+  biometricId: string;
+  employees: number;
+  logs: number;
+};
+
+/** Used only on a device's first visit to select the workspace containing data. */
+export async function fetchBiometricDataCounts(
+  biometricIds: string[],
+): Promise<BiometricDataCount[]> {
+  return Promise.all(
+    biometricIds.map(async (biometricId) => {
+      const [employeeResult, logResult] = await Promise.all([
+        supabase
+          .from("dtr_employees")
+          .select("emp_no", { count: "exact", head: true })
+          .eq("biometric_id", biometricId),
+        supabase
+          .from("dtr_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("biometric_id", biometricId),
+      ]);
+      return {
+        biometricId,
+        employees: employeeResult.error ? 0 : (employeeResult.count ?? 0),
+        logs: logResult.error ? 0 : (logResult.count ?? 0),
+      };
+    }),
+  );
 }
 export async function upsertBiometric(row: BiometricRow) {
   const { error } = await supabase.from("dtr_biometrics").upsert(row);
@@ -299,8 +340,8 @@ export async function upsertEmployee(biometricId: string, e: Employee) {
     .from("dtr_employees")
     .upsert(row, { onConflict: "biometric_id,emp_no" });
   if (!error) return;
-  // Fallback: the `terms` column may not exist yet (migration not applied).
-  // Retry without it so base official times still save.
+  // Never silently discard term data. A successful legacy-only retry made
+  // Old/Term 2/Term 3 appear saved locally but disappear on another device.
   const msg = (error as { message?: string })?.message ?? "";
   const code = (error as { code?: string })?.code ?? "";
   const looksMissingTerms =
@@ -309,18 +350,9 @@ export async function upsertEmployee(biometricId: string, e: Employee) {
     code === "42703" ||
     /column .* does not exist/i.test(msg);
   if (looksMissingTerms) {
-    const { terms: _omit, ...rest } = row;
-    void _omit;
-    const retry = await supabase
-      .from("dtr_employees")
-      .upsert(rest, { onConflict: "biometric_id,emp_no" });
-    if (!retry.error) {
-      console.warn(
-        "[upsertEmployee] Saved without `terms` — run SUPABASE_MIGRATION_TERMS.sql to enable 3-term storage.",
-      );
-      return;
-    }
-    throw retry.error;
+    throw new Error(
+      "Official term storage is not installed. Run SUPABASE_MIGRATION_TERMS.sql, refresh, then save again.",
+    );
   }
   throw error;
 }

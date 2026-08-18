@@ -6,7 +6,14 @@
 //   - IndexedDB (via cache-service) = warm cache for instant first paint
 //   - dtr_sync_counters realtime (1 event per bulk import) + incremental log fetch
 import { useEffect, useState } from "react";
-import type { Employee, RawLog, DayRecord, DayOverrides, TermKey } from "./dtr";
+import {
+  normalizeEmployeeNumber,
+  type Employee,
+  type RawLog,
+  type DayRecord,
+  type DayOverrides,
+  type TermKey,
+} from "./dtr";
 import { supabase } from "./supabase";
 import * as P from "./supabase-persistence";
 import { attendanceRepository } from "./attendance-repository";
@@ -114,6 +121,14 @@ function persistCurrent(id: string) {
   }
 }
 
+function storedCurrentBiometric(): string | null {
+  try {
+    return localStorage.getItem(LS_CURRENT);
+  } catch {
+    return null;
+  }
+}
+
 function startKeepAlivePing() {
   if (keepAliveTimer || typeof window === "undefined") return;
   const ping = async () => {
@@ -173,9 +188,17 @@ async function bootstrap() {
       }
     }
 
-    // Resolve current selection; fall back to first available.
-    let current = state.currentBiometricId;
-    if (!list.some((b) => b.id === current)) current = list[0]?.id ?? "1";
+    // Keep an explicit per-device choice. On a new device, select the
+    // biometric containing the most attendance instead of blindly using #1.
+    const storedCurrent = storedCurrentBiometric();
+    let current = storedCurrent ?? "";
+    if (!current || !list.some((b) => b.id === current)) {
+      const counts = await P.fetchBiometricDataCounts(list.map((b) => b.id));
+      counts.sort((a, b) =>
+        b.employees - a.employees || b.logs - a.logs || a.biometricId.localeCompare(b.biometricId),
+      );
+      current = counts[0]?.biometricId ?? list[0]?.id ?? "1";
+    }
     persistCurrent(current);
 
     setState({ biometrics: list, currentBiometricId: current, verifiedBy });
@@ -421,17 +444,20 @@ export function useDtrStore() {
 
     // ---- Employees ----
     async addEmployee(emp: Employee) {
+      const normalized = { ...emp, empNo: normalizeEmployeeNumber(emp.empNo) };
       setState({
-        employees: [...state.employees.filter((e) => e.empNo !== emp.empNo), emp],
+        employees: [...state.employees.filter((e) => e.empNo !== normalized.empNo), normalized],
       });
       try {
-        await P.upsertEmployee(biometricId, emp);
+        await P.upsertEmployee(biometricId, normalized);
       } catch (e) {
         console.error("[addEmployee]", e);
+        setState({ employees: state.employees.filter((item) => item.empNo !== normalized.empNo) });
+        throw e;
       }
     },
     async saveEmployee(oldEmpNo: string, updated: Employee) {
-      const newEmpNo = updated.empNo.trim();
+      const newEmpNo = normalizeEmployeeNumber(updated.empNo);
       if (!newEmpNo) throw new Error("Employee No. required");
       const renaming = newEmpNo !== oldEmpNo;
       if (renaming && state.employees.some((e) => e.empNo === newEmpNo)) {
